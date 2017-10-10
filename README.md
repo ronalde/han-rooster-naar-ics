@@ -1,8 +1,7 @@
 # README for HAN Rooster parser
 
 `han-rooster-parser` is a bash script which gathers the [rather flaky
-html output](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp) from the *Gruber&Petters/Grupet GP Untis*[^gpuntis] timetabling/roster
-software and translates that in to a valid iCalendar Specification
+html output](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp) titled "Roosterinformatie FSK/IAS" and translates that in to a valid iCalendar Specification
 (ICS) file[^icalspec] for easy automated consumption by any iCalendar client application.
 
    **DISCLAIMER**: *The script is tested only for the rosters for the "Faculteit Techniek en Life Sciences" (FSK) / "Institute for Applied Sciences" (IAS) department of the Hogeschool Arnhem Nijmegen (HAN), The Netherlands. The use of the script is not endorsed or supported by HAN.* 
@@ -64,6 +63,8 @@ symlink_path="${webserver_root}/han.ics"
 
 ## Rationale
 
+The source webpage is created by HAN using the *Gruber&Petters/Grupet GP Untis*[^gpuntis] timetabling/roster
+software.  
 Although Untis natively supports ICS-exporting, the school has chosen
 to *not* use that important feature for students. Although they did
 develop/buy a custom non-native 'webapp' for iOS and Android, they
