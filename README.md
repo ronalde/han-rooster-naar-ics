@@ -67,7 +67,7 @@ The source webpage is created by HAN using the *Gruber&Petters/Grupet GP Untis*[
 software.  
 Although Untis natively supports ICS-exporting, the school has chosen
 to *not* use that important feature for students. Although they did
-develop/buy a custom non-native 'webapp' for iOS and Android, they
+develop/buy a custom non-native 'webapp' for iOS and Android (called [han4me](https://frankthuss.wordpress.com/2011/08/23/han4me-de-nieuwe-roosterapp-voor-han-docenten-en-studenten-yam-hanicto/) ), they
 chose to *not* make it accessible using a normal webbrowser. This
 means students are left with the rather unusable 90's web site
 for viewing this important data. 
