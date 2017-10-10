@@ -1,7 +1,7 @@
 # README for HAN Rooster parser
 
-`han-rooster-parser` is a bash script which gathers the rather flaky
-html output from the *Gruber&Petters/Grupet GP Untis*[^gpuntis] timetabling/roster
+`han-rooster-parser` is a bash script which gathers the [rather flaky
+html output](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp) from the *Gruber&Petters/Grupet GP Untis*[^gpuntis] timetabling/roster
 software and translates that in to a valid iCalendar Specification
 (ICS) file[^icalspec].
 
