@@ -727,7 +727,9 @@ function parse_roster_hours() {
 	    while read -r line; do
 		parsed_props="$(parse_roster_item "${week_startdate}" "${weekday}" "${line}")"
 		printf 1>&2 "."
-		printf "%s" "${parsed_props}"
+		## parsed_props contains formatting
+		# shellcheck disable=SC2059
+		printf "${parsed_props}"
 	    done<<<"${res}"
 	done
     done 
