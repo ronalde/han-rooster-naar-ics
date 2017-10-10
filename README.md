@@ -134,7 +134,7 @@ See: https://en.wikipedia.org/wiki/List_of_applications_with_iCalendar_support
 ## Footnotes and references
 
 [^gpuntis]:
-	http://www.kanzaki.com/docs/ical/
+	https://www.untis.at/
 	
 [^icalspec]:
 	http://www.kanzaki.com/docs/ical/
