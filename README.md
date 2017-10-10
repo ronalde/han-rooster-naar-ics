@@ -5,6 +5,7 @@ html output](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp) from the *Gruber
 software and translates that in to a valid iCalendar Specification
 (ICS) file[^icalspec].
 
+**DISCLAIMER**: *The script is tested only for the rosters for the "Faculteit Techniek en Life Sciences" (FSK) / "Institute for Applied Sciences" (IAS) department of the HAN (professional university of Nijmegen, The Netherlands). The use of the script is not endorsed or supported by HAN.* 
 
 ## Quick start
 
@@ -85,9 +86,7 @@ existence in the $PATH and exits when they aren't found:
 
 ## Design
 
-The script uses a source url[^sourceurl] for a specific lesson group
-of the "Applies Sciences" department of the HAN (professional
-university of Nijmegen, The Netherlands). Because the source webserver
+Because the source webserver
 only support HTTP POST parameters, the lesson group is specified
 through the `group_id` field, which is looked up by the script on the
 website using the `group_name`. The `group_name` field is only used
