@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="utf-8"?>
+<html>
+  <head>
+    <meta name="generator" content=
+	  "HTML Tidy for HTML5 for Linux version 5.2.0" />
+    <link rel="shortcut icon" href="splrbh.ico" />
+    <meta http-equiv="Content-Type" content=
+	  "text/html; charset=utf-8" />
+    <title>Roosterinformatie</title>
+
+    <script language="JavaScript">
+      <![CDATA[
+
+function sendForm(form, soort){
+if (soort == 'dct') {
+form.groep.selectedIndex = 0;
+form.lokaal.selectedIndex = 0;
+}
+else if (soort == 'grp') {
+form.docent.selectedIndex = 0;
+form.lokaal.selectedIndex = 0;
+}
+else if (soort == 'lok') {
+form.docent.selectedIndex = 0;
+form.groep.selectedIndex = 0;
+}
+form.submit();
+}
+
+function wijzigWeek(form){
+if ( form.docent.selectedIndex != 0 ||
+form.groep.selectedIndex  != 0 ||
+form.lokaal.selectedIndex != 0){
+form.submit()
+}
+}
+
+      ]]>
+    </script>
+    <link rel="stylesheet" type="text/css" href="splrbh.css" />
+  </head>
+  <body>
+    <form action="/SchoolplanFT_AS/rooster.asp" method="post" id="form"
+	  name="form"><!-- tabel voor positionering -->
+      <table border="0" class="positioning">
+	<tr>
+	  <td colspan="3" class="title">Roosterinformatie FTK/ IAS</td>
+	  <td style="text-align:right"><input type="submit" class="flaguk"
+	  style="border: 2px solid white" name="setLangEn" id="setLangEn"
+	  alt="in English" value="en" />&#160;<input type="submit" class=
+	  "flagnl" style="border: 2px solid grey" name="setLangNl" id=
+	  "setLangNl" alt="in het Nederlands" value="nl" /></td>
+	</tr>
+	<tr>
+	  <td colspan="4">&#160;</td>
+	</tr>
+	<tr>
+	  <td nowrap="nowrap"><span class="label">Groep</span> <select id=
+	  "groep" name="groep" onchange="sendForm(this.form, 'grp')">
+	  <option value="0"></option>
+	  <option value="182">Bezet</option>
+	  <option value="117">Bi1a</option>
+	  <option value="128">Bi1b</option>
+	  <option value="324">Bi1c</option>
+	  <option value="344">Bi1d</option>
+	  <option value="372">Bi1e</option>
+	  <option value="373">Bi1f</option>
+	  <option value="125">Bi2a</option>
+	  <option value="246">Bi2b</option>
+	  <option value="385">Bi2c</option>
+	  <option value="386">Bi2d</option>
+	  <option value="320">Bi3a</option>
+	  <option value="336">Cursus</option>
+	  <option value="376">Cursus Engels</option>
+	  <option value="352">Cursussen</option>
+	  <option value="364">EDT</option>
+	  <option value="357">Extern</option>
+	  <option value="375">F&amp;B</option>
+	  <option value="115">H1a</option>
+	  <option value="124">H1b</option>
+	  <option value="120">H1c</option>
+	  <option value="103">H1d</option>
+	  <option value="229">H1e</option>
+	  <option value="138">H1f</option>
+	  <option value="135">H1g</option>
+	  <option value="230">H1h</option>
+	  <option value="270">H1i</option>
+	  <option value="285">H1k</option>
+	  <option value="286">H1l</option>
+	  <option value="325">H1m</option>
+	  <option value="326">H1n</option>
+	  <option value="337">H1o</option>
+	  <option value="345">H1p</option>
+	  <option value="346">H1q</option>
+	  <option value="354">H1r</option>
+	  <option value="121">H2ba</option>
+	  <option value="104">H2bb</option>
+	  <option value="112">H2bc</option>
+	  <option value="231">H2bd</option>
+	  <option value="342">H2be</option>
+	  <option value="363">H2bf</option>
+	  <option value="370">H2bg</option>
+	  <option value="382">H2bh</option>
+	  <option value="387">H2BMa</option>
+	  <option value="388">H2BMb</option>
+	  <option value="389">H2BMc</option>
+	  <option value="390">H2BMd</option>
+	  <option value="391">H2BMe</option>
+	  <option value="392">H2BMf</option>
+	  <option value="401">H2BMi</option>
+	  <option value="402">H2BMj</option>
+	  <option value="403">H2BMk</option>
+	  <option value="404">H2BMl</option>
+	  <option value="405">H2BMm</option>
+	  <option value="406">H2BMn</option>
+	  <option value="415">H2BMw</option>
+	  <option value="393">H2BMx</option>
+	  <option value="394">H2BMy</option>
+	  <option value="395">H2BMz</option>
+	  <option value="137">H2ca</option>
+	  <option value="132">H2cb</option>
+	  <option value="232">H2cc</option>
+	  <option value="287">H2cd</option>
+	  <option value="353">H2ce</option>
+	  <option value="140">H2ma</option>
+	  <option value="111">H2mb</option>
+	  <option value="288">H2mc</option>
+	  <option value="323">H2md</option>
+	  <option value="366">H2me</option>
+	  <option value="113">H3ba</option>
+	  <option value="119">H3bb</option>
+	  <option value="289">H3bc</option>
+	  <option value="396">H3BR</option>
+	  <option value="358">H3ca1</option>
+	  <option value="359">H3ca2</option>
+	  <option value="380">H3ca3</option>
+	  <option value="116">H3co_a</option>
+	  <option value="367">H3co_b</option>
+	  <option value="118">H3mc</option>
+	  <option value="186">H3Mma</option>
+	  <option value="343">H3Mmb</option>
+	  <option value="225">H3Pt</option>
+	  <option value="143">IDT</option>
+	  <option value="381">Leraren Biologie</option>
+	  <option value="247">LMA1-e</option>
+	  <option value="248">LMA1-f</option>
+	  <option value="297">LMA1-ft</option>
+	  <option value="327">LMA1-fta</option>
+	  <option value="249">LMA1-g</option>
+	  <option value="250">LMA1-h</option>
+	  <option value="347">LMA1-i</option>
+	  <option value="348">LMA1-j</option>
+	  <option value="335">LMA1-k</option>
+	  <option value="397">LMA1-l</option>
+	  <option value="298">LMA2-a</option>
+	  <option value="299">LMA2-b</option>
+	  <option value="251">LMA2-c</option>
+	  <option value="252">LMA2-d</option>
+	  <option value="253">LMA2-e</option>
+	  <option value="300">LMA2-f</option>
+	  <option value="398">LMA2-ft</option>
+	  <option value="349">LMA2-g</option>
+	  <option value="350">LMA2-h</option>
+	  <option value="301">LMA3-Ca</option>
+	  <option value="302">LMA3-Cb</option>
+	  <option value="351">LMA3-Cc</option>
+	  <option value="374">LMA3-Cd</option>
+	  <option value="399">LMA3-Ce</option>
+	  <option value="303">LMA3-La</option>
+	  <option value="304">LMA3-Lb</option>
+	  <option value="305">LMA3-Lc</option>
+	  <option value="328">LMA3-Ld</option>
+	  <option value="329">LMA3-Le</option>
+	  <option value="306">LMA3-Ma</option>
+	  <option value="383">LMA3-Ma (Klinisch)</option>
+	  <option value="307">LMA3-Mb</option>
+	  <option value="384">LMA3-Mb (Path.)</option>
+	  <option value="308">LMA4-Ble</option>
+	  <option value="309">LMA4-Ca</option>
+	  <option value="310">LMA4-Cb</option>
+	  <option value="315">LMA4-Ka</option>
+	  <option value="316">LMA4-La</option>
+	  <option value="317">LMA4-Lb</option>
+	  <option value="331">LMA4-Pa</option>
+	  <option value="136">Ls1a</option>
+	  <option value="130">Ls1b</option>
+	  <option value="233">Ls1c</option>
+	  <option value="279">Ls1d</option>
+	  <option value="330">Ls1e</option>
+	  <option value="134">Ls2a</option>
+	  <option value="147">Ls2b</option>
+	  <option value="334">Ls2c</option>
+	  <option value="368">Ls2d</option>
+	  <option value="191">Ls3a</option>
+	  <option value="192">Ls3b</option>
+	  <option value="371">Ls3c</option>
+	  <option value="290">Ls3Pt</option>
+	  <option value="338">LVA3-b</option>
+	  <option value="341">Masters</option>
+	  <option value="272">minor</option>
+	  <option value="400">Minor Data</option>
+	  <option value="226">MLO</option>
+	  <option value="291">MLO Instr</option>
+	  <option value="407">plaats in 101 inf (3</option>
+	  <option value="411">plaats in 101inf(30)</option>
+	  <option value="408">plaats in 112 Binf (</option>
+	  <option value="409">plaats in 123 Inf (4</option>
+	  <option value="414">plaats in L128 (1g)</option>
+	  <option value="410">plaats L128 (2g)</option>
+	  <option value="412">plaatsin 112Binf(45)</option>
+	  <option value="413">plaatsin 123 Inf(45)</option>
+	  <option value="360">PR-Food&amp;Business</option>
+	  <option value="322">V&amp;D</option>
+	  <option value="377">Vluchtelingen</option>
+	</select></td>
+	<td nowrap="nowrap"><span class="label">Docent</span> <select id=
+	"docent" name="docent" onchange="sendForm(this.form, 'dct')">
+	<option value="0"></option>
+	<option value="325">ABSF</option>
+	<option value="374">AKEJO</option>
+	<option value="286">AMLA</option>
+	<option value="375">ARNHE</option>
+	<option value="553">ASSRE</option>
+	<option value="498">BAKMA</option>
+	<option value="519">BAUSV</option>
+	<option value="496">BCRC</option>
+	<option value="464">BDSW</option>
+	<option value="287">BGNMH</option>
+	<option value="457">BHSRP</option>
+	<option value="566">BKCC</option>
+	<option value="443">BLMM</option>
+	<option value="565">BLVNG</option>
+	<option value="377">BOERU</option>
+	<option value="366">BOSMA</option>
+	<option value="407">BOULE</option>
+	<option value="206">BRGHC</option>
+	<option value="444">BRGHV</option>
+	<option value="520">BROCH</option>
+	<option value="445">BRONI</option>
+	<option value="378">BROSU</option>
+	<option value="554">BRUAN</option>
+	<option value="403">BRUMA</option>
+	<option value="289">BSCHE</option>
+	<option value="290">BTSMA</option>
+	<option value="327">BVDK</option>
+	<option value="467">CLAEM</option>
+	<option value="291">CMSB</option>
+	<option value="468">COEPI</option>
+	<option value="469">CRNA</option>
+	<option value="484">DAMJA</option>
+	<option value="420">DEEFR</option>
+	<option value="502">DIJRO</option>
+	<option value="292">DMNHB</option>
+	<option value="542">DNNA</option>
+	<option value="503">DRISA</option>
+	<option value="433">DRLK</option>
+	<option value="293">DSNK</option>
+	<option value="555">DSNTM</option>
+	<option value="461">DTSK</option>
+	<option value="446">ERKMI</option>
+	<option value="451">FRNCC</option>
+	<option value="279">Gast</option>
+	<option value="379">GERTH</option>
+	<option value="265">GNWW</option>
+	<option value="492">GRERU</option>
+	<option value="470">GRSIH</option>
+	<option value="528">GRTJM</option>
+	<option value="536">GRTPJ</option>
+	<option value="543">GRWW</option>
+	<option value="369">GSNME</option>
+	<option value="318">GSNT</option>
+	<option value="421">HELBE</option>
+	<option value="471">HENMA</option>
+	<option value="465">HHFR</option>
+	<option value="537">HHSS</option>
+	<option value="552">HKM</option>
+	<option value="534">HKVA</option>
+	<option value="556">HMTK</option>
+	<option value="497">HOFSU</option>
+	<option value="295">HTGG</option>
+	<option value="524">HVLM</option>
+	<option value="472">HVSJA</option>
+	<option value="381">JAAHA</option>
+	<option value="382">JAEHA</option>
+	<option value="296">JGST</option>
+	<option value="297">JNKL</option>
+	<option value="298">JNSJ</option>
+	<option value="384">KAPRO</option>
+	<option value="557">KIMEL</option>
+	<option value="529">KIPD</option>
+	<option value="473">KKE</option>
+	<option value="345">KMNMW</option>
+	<option value="505">KMNT</option>
+	<option value="551">KONINGSDAG</option>
+	<option value="301">KRNW</option>
+	<option value="385">KROAN</option>
+	<option value="408">KSKJ</option>
+	<option value="506">KSLR</option>
+	<option value="544">KSMJJ</option>
+	<option value="386">KUIBE</option>
+	<option value="395">LAAED</option>
+	<option value="489">LAMF</option>
+	<option value="485">LANST</option>
+	<option value="452">LDNE</option>
+	<option value="387">LENRE</option>
+	<option value="545">LFDB</option>
+	<option value="449">LHTA</option>
+	<option value="363">LMNB</option>
+	<option value="364">LMSWL</option>
+	<option value="475">LOMHA</option>
+	<option value="507">LRDM</option>
+	<option value="508">LWNR</option>
+	<option value="423">MERMA</option>
+	<option value="559">MESUJ</option>
+	<option value="442">MJRI</option>
+	<option value="302">MLCKR</option>
+	<option value="530">MNVR</option>
+	<option value="510">MSSMP</option>
+	<option value="388">NAGEL</option>
+	<option value="521">NGNTD</option>
+	<option value="476">ODLN</option>
+	<option value="303">OLMM</option>
+	<option value="522">OMSJ</option>
+	<option value="427">ONDERHOUD</option>
+	<option value="560">OSDPC</option>
+	<option value="477">PERCH</option>
+	<option value="370">PIEKR</option>
+	<option value="550">PINKSTEREN</option>
+	<option value="409">PLNA</option>
+	<option value="546">PLNTH</option>
+	<option value="412">POSOD</option>
+	<option value="541">PQD</option>
+	<option value="389">PROPE</option>
+	<option value="304">RGTE</option>
+	<option value="418">RIEBE</option>
+	<option value="415">RIEJO</option>
+	<option value="390">RIJBR</option>
+	<option value="424">RSBM</option>
+	<option value="322">RTSI</option>
+	<option value="305">RVDR</option>
+	<option value="561">SA</option>
+	<option value="479">SBGRF</option>
+	<option value="454">SCHFR</option>
+	<option value="428">SCHVI</option>
+	<option value="417">SCPAS</option>
+	<option value="547">SDKN</option>
+	<option value="532">SENECA</option>
+	<option value="306">SLKJ</option>
+	<option value="562">SMSC</option>
+	<option value="486">SMTSAK</option>
+	<option value="307">SMTSP</option>
+	<option value="455">SPRTI</option>
+	<option value="563">STC</option>
+	<option value="371">STRAR</option>
+	<option value="437">STRSK</option>
+	<option value="538">StudAs</option>
+	<option value="548">StudAsst</option>
+	<option value="527">STUDENT</option>
+	<option value="549">STUDIEDAG</option>
+	<option value="276">Surv</option>
+	<option value="310">SVSH</option>
+	<option value="311">TDTT</option>
+	<option value="312">THLA</option>
+	<option value="397">TMMMS</option>
+	<option value="313">TNGJ</option>
+	<option value="564">VAC BM4</option>
+	<option value="392">Vaca</option>
+	<option value="540">VACA SCV</option>
+	<option value="414">VENEC</option>
+	<option value="372">VEROB</option>
+	<option value="456">VLGC</option>
+	<option value="539">VNKP</option>
+	<option value="393">VOSIL</option>
+	<option value="315">VRDJ</option>
+	<option value="483">VRSI</option>
+	<option value="316">VWKJ</option>
+	<option value="398">WDTM</option>
+	<option value="487">WELBE</option>
+	<option value="317">WLMSF</option>
+	<option value="567">WLSNB</option>
+	<option value="426">WNDR</option>
+	<option value="533">WOLMR</option>
+	<option value="558">WSKMW</option>
+	<option value="525">ZDGJ</option>
+	<option value="401">ZEEIN</option>
+	<option value="221">Zelfst.</option>
+	<option value="488">ZMRE</option>
+	<option value="462">ZVRE</option>
+	<option value="523">ZWADI</option>
+	<option value="422">ZWRTE</option>
+      </select></td>
+      <td nowrap="nowrap"><span class="label">Lokaal</span> <select id=
+      "lokaal" name="lokaal" onchange="sendForm(this.form, 'lok')">
+      <option value="0"></option>
+      <option value="289">101 inf (3</option>
+      <option value="290">112 Binf (</option>
+      <option value="291">123 Inf (4</option>
+      <option value="237">206 spr</option>
+      <option value="203">244 (ck)</option>
+      <option value="278">Aula</option>
+      <option value="269">Extern</option>
+      <option value="172">G102 (45)</option>
+      <option value="173">G105 (45)</option>
+      <option value="174">G106 (45)</option>
+      <option value="283">G108 (30)</option>
+      <option value="178">G129 (30)</option>
+      <option value="179">G201 (80)</option>
+      <option value="180">G203 (45)</option>
+      <option value="182">G209 (45)</option>
+      <option value="284">G211 (30)</option>
+      <option value="285">G212 (15)</option>
+      <option value="287">G219 (30)</option>
+      <option value="288">G221 (30)</option>
+      <option value="244">G241 (30)</option>
+      <option value="271">GLok1 (30)</option>
+      <option value="272">GLok2 (30)</option>
+      <option value="297">K33-D118</option>
+      <option value="294">Kantine</option>
+      <option value="205">L016_1</option>
+      <option value="206">L016_2</option>
+      <option value="207">L018_1</option>
+      <option value="208">L018_2</option>
+      <option value="252">L018_3</option>
+      <option value="209">L021_1</option>
+      <option value="210">L021_2</option>
+      <option value="188">L023 (1g)</option>
+      <option value="211">L025_1</option>
+      <option value="216">L025_2</option>
+      <option value="218">L025_3</option>
+      <option value="212">L027a (20)</option>
+      <option value="213">L027b (8)</option>
+      <option value="242">L118 (1g)</option>
+      <option value="238">L120 (1g)</option>
+      <option value="292">L121</option>
+      <option value="293">L128 (2g)</option>
+      <option value="251">L220 (DSP Lab)</option>
+      <option value="254">L224</option>
+      <option value="204">L226 (16)</option>
+      <option value="258">L242 (DSP Lab)</option>
+      <option value="281">L247 (MA)</option>
+      <option value="217">L255_1</option>
+      <option value="215">L255_2</option>
+      <option value="214">L255_3</option>
+      <option value="253">L257 (1g)</option>
+      <option value="192">L261 (1g)</option>
+      <option value="274">W Box 1</option>
+      <option value="275">W Box 2</option>
+      <option value="277">W Box 3 (doc.?</option>
+      <option value="296">W125</option>
+      <option value="197">W208 (15)</option>
+      <option value="249">W258a</option>
+      <option value="198">W260 (15)</option>
+      </select></td>
+    </tr>
+    <tr>
+      <td colspan="4">&#160;</td>
+    </tr>
+    <tr>
+      <td nowrap="nowrap"><span class="label">Week</span> <select id=
+      "StartWeek" name="StartWeek" onchange="wijzigWeek(this.form)">
+      <option value="8/15/2016">33&#160;&#160;(15-8 t/m 20-8)</option>
+      <option value="8/22/2016">34&#160;&#160;(22-8 t/m 27-8)</option>
+      <option value="8/29/2016">35&#160;&#160;(29-8 t/m 3-9)</option>
+      <option value="9/5/2016">36&#160;&#160;(5-9 t/m 10-9)</option>
+      <option value="9/12/2016" selected="selected">37&#160;&#160;(12-9
+      t/m 17-9)</option>
+      <option value="9/19/2016">38&#160;&#160;(19-9 t/m 24-9)</option>
+      <option value="9/26/2016">39&#160;&#160;(26-9 t/m 1-10)</option>
+      <option value="10/3/2016">40&#160;&#160;(3-10 t/m 8-10)</option>
+      <option value="10/10/2016">41&#160;&#160;(10-10 t/m 15-10)</option>
+      <option value="10/17/2016">42&#160;&#160;(17-10 t/m 22-10)</option>
+      <option value="10/24/2016">43&#160;&#160;(24-10 t/m 29-10)</option>
+      <option value="10/31/2016">44&#160;&#160;(31-10 t/m 5-11)</option>
+      <option value="11/7/2016">45&#160;&#160;(7-11 t/m 12-11)</option>
+      <option value="11/14/2016">46&#160;&#160;(14-11 t/m 19-11)</option>
+      <option value="11/21/2016">47&#160;&#160;(21-11 t/m 26-11)</option>
+      <option value="11/28/2016">48&#160;&#160;(28-11 t/m 3-12)</option>
+      <option value="12/5/2016">49&#160;&#160;(5-12 t/m 10-12)</option>
+      <option value="12/12/2016">50&#160;&#160;(12-12 t/m 17-12)</option>
+      <option value="12/19/2016">51&#160;&#160;(19-12 t/m 24-12)</option>
+      <option value="12/26/2016">52&#160;&#160;(26-12 t/m 31-12)</option>
+      <option value="1/2/2017">1&#160;&#160;(2-1 t/m 7-1)</option>
+      <option value="1/9/2017">2&#160;&#160;(9-1 t/m 14-1)</option>
+      <option value="1/16/2017">3&#160;&#160;(16-1 t/m 21-1)</option>
+      <option value="1/23/2017">4&#160;&#160;(23-1 t/m 28-1)</option>
+      <option value="1/30/2017">5&#160;&#160;(30-1 t/m 4-2)</option>
+      <option value="2/6/2017">6&#160;&#160;(6-2 t/m 11-2)</option>
+      <option value="2/13/2017">7&#160;&#160;(13-2 t/m 18-2)</option>
+      <option value="2/20/2017">8&#160;&#160;(20-2 t/m 25-2)</option>
+      <option value="2/27/2017">9&#160;&#160;(27-2 t/m 4-3)</option>
+      </select></td>
+      <td nowrap="nowrap"><input type="checkbox" name="lestijden" id=
+      "lestijden" checked="checked" onclick=
+      "wijzigWeek(this.form)" /><span class="label">Toon
+      lestijden</span></td>
+      <td nowrap="nowrap"><input type="checkbox" name="zaterdag" id=
+      "zaterdag" onclick="wijzigWeek(this.form)" /><span class=
+      "label">Toon zaterdag</span></td>
+      <td nowrap="nowrap"><input type="checkbox" name="wijzigingen" id=
+      "wijzigingen" onclick="wijzigWeek(this.form)" /><span class=
+      "label">Toon wijzigingen</span></td>
+    </tr>
+  </table>
+</form>
+<table border="0" class="positioning"></table>
+</body>
+</html>
