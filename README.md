@@ -118,9 +118,9 @@ synchronise with the (updated) ics file.
 	application) are overwritten by the script when it runs again.
 
 
-## Client support for ICS through a custom webserver :icalclients
+## Client support for ICS through a custom webserver
 
-The following clients are known to support subscribing to ICS files
+<a id="icalclients"></a>The following clients are known to support subscribing to ICS files
 using non-Google/Microsoft/Apple webservers:
 
 - Thunderbird (all platforms)
