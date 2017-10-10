@@ -1,0 +1,1231 @@
+#!/usr/bin/env bash
+##
+## script that generates valid ics files out of gp untis web exports
+## of timetable/roster data for a fixed group ($group_id), starting
+## with the current week and advancing $weeks_ahead weeks ahead.
+##
+## resulting ics can be validated using
+## http://icalendar.org/validator.html
+## or the PHP Sabre\VObject\Reader class
+##
+##  Copyright (C) 2017 Ronald van Engelen <ronalde+github@lacocina.nl>
+##  This program is free software: you can redistribute it and/or modify
+##  it under the terms of the GNU General Public License as published by
+##  the Free Software Foundation, either version 3 of the License, or
+##  (at your option) any later version.
+##
+##  This program is distributed in the hope that it will be useful,
+##  but WITHOUT ANY WARRANTY; without even the implied warranty of
+##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##  GNU General Public License for more details.
+##
+##  You should have received a copy of the GNU General Public License
+##  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+## Source and documentation:    https://github.com/ronalde/untis2ics
+
+app_name="untis2ics"
+app_info_url="https://github.com/ronalde/untis2ics"
+
+default_courses_csv_filename="data/courses.csv"
+default_teachers_csv_filename="data/teachers.csv"
+default_lessonduration_minutes=45
+default_weeks_ahead=12
+default_standard_group_size=15
+default_csv_sep=";"
+default_ics_organizer_email="someone@example.org"
+default_ics_organizer_cn="${app_name}"
+default_ics_organizer_sentby_email="${app_name}@lacocina.nl"
+default_people_lookup_url_base="https://example.org/people?"
+default_ics_organizer_dirurl="${default_people_lookup_url_base}q="
+
+function display_usageinfo() {
+    msg_usage="\
+Usage:
+${app_name} -u|--roster-url URL -g|--group-name GROUPNAME [optional arguments]
+ - or -
+${app_name} PATHTOSETTINGSFILE
+
+Translate a published Untis roster for a group to a valid iCalendar
+(ICS) file.
+
+REQUIRED ARGUMENTS
+ -u|--roster-url URL               The full URL of the published Untis roster.
+ -g|--group-name GROUPNAME         The full name of the group for which the 
+ 		 		   roster should be fetched.
+
+OPTIONAL ARGUMENTS
+ -o|--output-path PATH     	   Defaults to GROUPNAME_CURRENTDATE.ics in current dir.
+ -l|--symlink-path PATH   	   Set the canonical PATH to which OUTPUTPATH should be 
+      symlinked.
+ -r|--relative-symlink PATH   	   Set the relative PATH to which OUTPUTPATH should be 
+      symlinked.
+
+ -d|--lessons-duration-minutes INT Defaults to ${default_lessonduration_minutes}
+ -s|--standard-group-size INT  	   Defaults to ${default_standard_group_size}
+ -a|--weeks-ahead INT	     	   Defaults to ${default_weeks_ahead}
+ -t|--teachers-csv-path PATH	   Path to the csv file containing
+       information on teachers. Defaults to \`${default_teachers_csv_filename}' in current
+       directory.
+ -c|--courses-csv-path PATH	   Path to the csv file containing
+       information on courses. Defaults to \`${default_courses_csv_filename}' in current
+       directory.
+ --ics-organizer-email ADDRESS	   Sets the MAILTO organizer field to ADDRESS in the ics.
+ --ics-organizer-cn COMMON_NAME	   Sets the CN organizer field to COMMON_NAME in the ics.
+ --ics-organizer-sentby-email ADDRESS 
+                                   Sets the SENTBY:MAILTO organizer field to ADDRESS 
+        			   in the ics.
+ --people-lookup-url URL	   URL is used in the instruction displayed when a teacher 
+       is not found in the teachers csv file.
+ -wo|--overwrite-output            If set, overwrites the output ics file when it exists.
+ -ws|--overwrite-symlink           If set, overwrites the symlink when it exists.
+
+Background information:
+${app_info_url}
+"
+    printf 1>&2 "%s\n" "${msg_usage}"
+}
+
+function die() {
+    [[ ${#@} -gt 0 ]] && msg_err="S"
+    printf "FATAL ERROR${msg_err}:\n%s\n\n" "$@" 1>&2
+    display_usageinfo
+    exit 1
+}
+
+function analyze_command_line() {
+    ## parse command line arguments using the `manual loop` method
+    ## described in http://mywiki.wooledge.org/BashFAQ/035.
+    while :; do
+        case "${1:-}" in
+            -u|--roster-url)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid URL."
+		else
+		    arg_roster_url="$2"
+		    shift 2
+                    continue
+		fi
+		;;
+	    -g|--group-name)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid GROUPNAME."
+		else
+		    arg_group_name="${2}"
+		    shift 2
+                    continue
+		fi
+		;;
+            -o|--output-path)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid PATH."
+		else
+		    arg_output_path="$2"
+		    shift 2
+                    continue
+		fi
+		;;
+            -l|--symlink-path)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid PATH."
+		else
+		    arg_symlink_path="$2"
+		    shift 2
+                    continue
+		fi
+		;;
+            -r|--relative-symlink)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid PATH."
+		else
+		    arg_relative_symlink="$2"
+		    shift 2
+                    continue
+		fi
+		;;
+	    -s|--standard-group-size)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a valid standard GROUPSIZE."
+		else
+		    arg_standard_group_size="${2}"
+		    if [[ ${arg_standard_group_size} -lt 1 ]]; then
+			die "argument \`$1' requires a valid standard GROUPSIZE (>0)."
+		    else
+			shift 2
+			continue
+		    fi
+		fi
+		;;
+            -a|--weeks-ahead)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a valid number."
+		    break
+		else
+		    arg_weeks_ahead="$2"
+		    if [[ ${arg_weeks_ahead} -lt 1 ]]; then
+			die "argument \`$1' requires a valid number (>0)."
+		    else
+			shift 2
+			continue
+		    fi
+		fi
+		;;
+            -l|--lessons-duration-minutes)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a valid number."
+		    break
+		else
+		    arg_lessonduration_minutes="$2"
+		    if [[ ${arg_lessonduration_minutes} -lt 1 ]]; then
+			die "argument \`$1' requires a valid number (>0)."
+		    else
+			shift 2
+			continue
+		    fi
+		fi
+		;;
+            --ics-organizer-email)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a non-empty string."
+		    break
+		else
+		    arg_ics_organizer_email="$2"
+		    shift 2
+		    continue
+		fi
+		;;
+            --ics-organizer-cn)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a non-empty string."
+		    break
+		else
+		    arg_ics_organizer_cn="$2"
+		    shift 2
+		    continue
+		fi
+		;;
+            --ics-organizer-sentby-email)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a non-empty string."
+		    break
+		else
+		    arg_ics_organizer_sentby_email="$2"
+		    shift 2
+		    continue
+		fi
+		;;
+            --people-lookup-url)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a non-empty string."
+		    break
+		else
+		    arg_people_lookup_url_base="$2"
+		    shift 2
+		    continue
+		fi
+		;;
+            --ics-organizer-dirurl)
+		if [[ "${2}x" == "x" ]]; then
+                    die "argument \`$1' requires a non-empty string."
+		    break
+		else
+		    arg_ics_organizer_dirurl="$2"
+		    shift 2
+		    continue
+		fi
+		;;
+            -t|--teachers-csv-path)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid PATH."
+		else
+		    arg_teachers_csv_path="$2"
+		    shift 2
+                    continue
+		fi
+		;;
+            -c|--courses-csv-path)
+		if [[ "${2}x" == "x" ]]; then
+		    die "argument \`$1' requires a valid PATH."
+		else
+		    arg_courses_csv_path="$2"
+		    shift 2
+                    continue
+		fi
+		;;	    
+            -wo|--overwrite-output)
+		arg_overwrite_output=True
+		shift
+                continue
+		;;	    
+            -ws|--overwrite-symlink)
+		arg_overwrite_symlink=True
+		shift
+                continue
+		;;	    
+	    -\?|--help)
+		display_usageinfo
+		exit
+		;;
+            --)
+		shift
+		break
+		;;
+	    -?*)
+		printf "Notice: unknown option \`%s' ignored\n\n." "$1" 1>&2
+		display_usageinfo
+		exit
+		;;
+            *)
+		break
+        esac
+    done
+    if [[ "$@x" != "x" ]]; then
+	## settings file specified
+	arg_settings_file="$@"
+    fi
+}
+
+
+function array_from_csv() {
+    ## fill $1 (labels_teachers or labels_courses) arrays by reading
+    ## in $2 fields from csv files.
+    datatype="$1"
+    fieldcount="$2"
+    csvfile="${csv_paths[${datatype}]}"
+    sep="${3:-${default_csv_sep}}"
+    ## construct regular expression for fieldcount number of csv
+    ## records.
+    match_re="([^${sep}]+)${sep}"
+    for (( i=1; i<fieldcount; i++)); do
+	match_re="${match_re}([^${sep}]+)"
+	if (( i < (( fieldcount - 1 )) )); then
+	    match_re="${match_re}${sep}"
+	fi
+    done
+    match_re="${match_re}[${sep}]*"
+    if [[ ! -f "${csvfile}" ]]; then
+	printf 1>&2 "warning in %s: no %s csv file found in \`%s'.\n" \
+		    "${FUNCNAME}" "${datatype}" "${csvfile}"
+	return 1
+    else
+	printf 1>&2 "%3s- getting %s from %s ..." \
+		    " " "${datatype}" "${csvfile}"
+    fi
+    case "${datatype}" in
+	courses)
+	    ## bi;Biology
+	    ## shortcut;full_description
+	    coursecounter=0
+	    while read -r line; do
+		if [[ "${line}" =~ ${match_re} ]]; then
+		    ((coursecounter++))
+		    course_shortcut="${BASH_REMATCH[1]}"
+		    course_fullname="${BASH_REMATCH[2]}"
+		    labels_courses["${course_shortcut}"]="${course_fullname}"
+		else
+		    printf 1>&2 "warning in %s: malformed line in csv file \`%s' using match_re \`%s':\n%s\n" \
+				"${FUNCNAME}" "${csvfile}" "${match_re}" "${line}"
+		    continue
+		fi
+	    done< "${csvfile}"
+	    if [[ ${#labels_courses[@]} -lt 1 ]]; then
+		printf 1>&2 "encountered errors:\nno courses found.\n" \
+			    
+		return 1
+	    else
+		printf 1>&2 "done.\n%5s(%d courses found)\n" \
+			    " " "${#labels_courses[@]}"
+	    fi
+	    ;;
+	teachers)
+	    ## BDSW;Wendy Broeders;docent;Wendy.Broeders@han.nl;5973
+	    ## shortcut;full name;jobtitle;email;dirid
+	    teachercounter=0
+	    while read -r line; do
+		if [[ "${line}" =~ ${match_re} ]]; then
+		    ((teachercounter++))
+		    teacher_shortcut="${BASH_REMATCH[1]}"
+		    teacher_fullname="${BASH_REMATCH[2]}"
+		    teacher_jobtitle="${BASH_REMATCH[3]}"
+		    teacher_email="${BASH_REMATCH[4]}"
+		    teacher_dirid="${BASH_REMATCH[5]}"
+		    teacher_details="(${teacher_jobtitle}) mailto:${teacher_email} dir:id=${teacher_dirid}"
+		    labels_teachers["${teacher_shortcut}"]="${teacher_fullname} ${teacher_details}"
+		else
+		    printf 1>&2 "warning in %s: malformed line in %s csv file \`%s' using match_re \`%s':\n%s\n" \
+				"${FUNCNAME}" "${type}" "${csvfile}" "${match_re}" "${line}"
+		    continue
+		fi
+	    done< "${csvfile}"
+	    if [[ ${#labels_teachers[@]} -lt 1 ]]; then
+		printf 1>&2 "errors encountered.\nno teachers found.\n" \
+			    "${FUNCNAME}" "${csvfile}"
+		return 1
+	    else
+		printf 1>&2 "done.\n%5s(%d teachers found)\n" \
+			    " " "${#labels_teachers[@]}"
+	    fi
+	    ;;
+    esac
+}
+
+
+function ret_vevent_summary() {
+    ## return the value for a SUMMARY line for a VEVENT
+    course="$1"
+    course_lc="${course,,}"
+    ## use the courses label if it is defined
+    if [[ ${labels_courses[${course_lc}]+x} ]]; then
+	course_label="${labels_courses[${course_lc}]}"
+    else
+	course_label="${course}"
+    fi
+    teacher="$2"
+    room="$3"
+    printf "%s" "${course_label}"
+}
+
+function ret_vevent_category() {
+    ## return the value for a CATEGORY line for a VEVENT
+    course_lc="${1,,}"
+    category_value=""
+    case ${course_lc} in
+	*"toets"*|*"test"*) category_value="${labels_rosteritemcategory[test]}" ;;
+	*"prakt"*|*"pract"*|*"lab"*) category_value="${labels_rosteritemcategory[lab]}" ;;
+	*"colleg"*|*"lect"*) category_value="${labels_rosteritemcategory[lecture]}" ;;
+	*"worksh"*|*"slb"*|*"tutor"*|*"maple"*) category_value="${labels_rosteritemcategory[workshop]}" ;;
+	*) category_value="${labels_rosteritemcategory[lesson]}" ;;
+    esac
+    printf "%s" "${category_value}"
+}
+
+function ret_vevent_dtstart() {
+    ## return the value for a DTSTART line for a VEVENT
+    lesson_date="$1"
+    starttime="$2"
+    starttime_formatted="$(date -d "${starttime}" +"${ics_dt_timeformat}")"
+    #printf 1>&2  "dtstart: lesson_date=\`%s'\tstarttime=\`%s'\tstarttime_formatted=\`%s'\n" \
+    # "${lesson_date}" "${starttime}" "${starttime_formatted}"
+
+    printf "TZID=%s:%s%s" \
+	   "${ics_dt_timezoneid}" "${lesson_date}" "${starttime_formatted}"
+}
+
+function ret_vevent_dtend() {
+    ## return the value for a DTEND line for a VEVENT
+    lesson_date="$1"
+    starttime="$2"
+    starttime_sec=$(date -d "${starttime}" +"%s")
+    endtime_formatted="$(date -d "${starttime} sec + \
+${lessonduration_minutes} min - 1 sec" +"${ics_dt_timeformat}")"
+    #printf 1>&2  "dtend  : lesson_date=\`%s'\tstarttime=\`%s'\tendtime=\`%s'\n" \
+    #	   "${lesson_date}" "${starttime}" "${endtime_formatted}"
+
+    printf "TZID=%s:%s%s" \
+	   "${ics_dt_timezoneid}" "${lesson_date}" "${endtime_formatted}"
+}
+
+function ret_vevent_attendeechair() {
+    ## return the value for an ATTENDEE line for a VEVENT
+    teacher_field_value=$1
+    teacher_re="(.*)[[:space:]]+mailto:(.*)[[:space:]]+dir:(.*)$"
+    attendeechair=""
+    teacher_string="${labels_teachers[${teacher_field_value}]}"
+    if [[ "${teacher_string}" =~ ${teacher_re} ]]; then
+	teacher_name="${BASH_REMATCH[1]}"
+	teacher_mail="${BASH_REMATCH[2]}"
+	teacher_id="${BASH_REMATCH[3]}"
+	if [[ "${teacher_mail}x" == "x" ]]; then
+	    attendeechair="CN=${teacher_name}"	    
+	else
+	    if [[ "${teacher_id}x" == "x" ]]; then
+		attendeechair="CN=${teacher_name};RSVP=FALSE:MAILTO:${teacher_mail}"
+	    else
+		attendeechair="CN=${teacher_name};DIR=\"${ics_organizer_dirurl}${teacher_id}\";RSVP=FALSE:MAILTO:${teacher_mail}"		
+	    fi
+	fi
+	printf "%s" "${attendeechair}"
+    else
+	printf 1>&2 "\n%s: teacher abbreviation \`%s' not found in teachers csv file %s;\n \
+consider adding it using:\n%s\n" \
+		    "${FUNCNAME}" "${teacher_field_value}" "${csv_paths["teachers"]}" "${people_lookup_url_base}"
+	return 1
+    fi
+
+}
+
+function ret_vevent_location() {
+    ## return the value for a LOCATION line for a VEVENT.
+    ## expects a room name (eg. 'L121') with or without a room
+    ## capacity between parenthesis 'G106 (45)'
+    room=${1//\\n/ }
+    room=$(echo ${room})
+    room_with_capacity_re="(.*)[[:space:]]\(([0-9]+)\)"
+    if [[ ${room} =~ ${room_with_capacity_re} ]]; then
+	## capacity field contains number
+	room_name=${BASH_REMATCH[1]}
+	room_capacity=${BASH_REMATCH[2]}
+	if ((30<=room_capacity && room_capacity<45)); then
+	    room_type="small"
+	elif ((45<=room_capacity && room_capacity<80)); then
+	    room_type="moderate"		
+	elif ((80<=room_capacity)); then
+	    room_type="large"
+	else
+	    room_type="default"
+	fi
+	location_value="${labels_roomcapacity[${room_type}]} ${room_name}"
+    else
+	## no capacity field or one with non-numeric items
+	for key in "${!labels_roomcapacity[@]}"; do
+	    if [[ "${room,,}" =~ ${key} ]]; then
+		location_value="${labels_roomcapacity[${key}]} ${room}"
+		break
+	    fi
+	done
+	if [[ "${location_value}x" == "x" ]]; then 
+	    location_value="${labels_roomcapacity[default]} ${room}"
+	fi
+	[[ ${DEBUG} ]] && \
+	    printf 1>&2 "%s: location_value=\`%s'\n" \
+		    "${FUNCNAME}" "${location_value}"
+    fi
+    printf "%s" "${location_value}"    
+}
+
+function replace_newline_with_crlf() {
+    ## convert all newline characters ('\n') to crlf ('\r\n')
+    inputfile="$1"
+    outputfile="$2"
+    set -f
+    IFS='
+'
+    printf '%s\r\n' $(cat "${inputfile}")  > "${outputfile}"
+}
+
+function wrap_lines() {
+    ## Lines of text SHOULD NOT be longer than 75 octets, excluding
+    ## the line break. Long content lines SHOULD be split into a
+    ## multiple line representations using a line "folding"
+    ## technique. That is, a long line can be split between any two
+    ## characters by inserting a CRLF immediately followed by a single
+    ## linear white-space character (i.e., SPACE or HTAB). Any
+    ## sequence of CRLF followed immediately by a single linear
+    ## white-space character is ignored (i.e., removed) when
+    ## processing the content type.
+    ## http://icalendar.org/iCalendar-RFC-5545/3-1-content-lines.html
+
+    input_text="$(echo ${1//\\n/})"
+    i=0
+    chars=${ics_maxwidth}
+    while [[ -n "${input_text:$((chars*i)):${chars}}" ]]; do
+	#printf 1>&2 "debug (%s): \`%s'\n" "$((chars*i))" "${input_text:$((chars*i)):${chars}}"
+	if [[ ${i} -eq 0 ]]; then
+	    ## first line; just wrap
+	    printf "%s${ics_newline}" "${input_text:0:${chars}}"
+	else
+	    ## consequtive lines; start with space and wrap
+	    printf " %s${ics_newline}" "${input_text:$((chars*i)):${chars}}"
+	fi
+	((i++))
+    done
+}
+
+function parse_roster_item() {
+    ## parse (space separated) lesson name, teacher abbrev (#n-1) and
+    ## room (#n), in that particular numbered weekday and lesson
+    ## hour. In case of tests (instead of lessons), a <br> multiline
+    ## string, where each line consists of (space separated) test
+    ## name, a hyphen '-' (n-1) and room (n).
+    ##
+    ## Teacher abbrev (eg. SDKN) to name:
+    ##  https://www1.han.nl/insite/sb/home_opl.xml?content=/onze_mensen
+    ## tests (Description=Toets ...) have a hyphen '-' instead of a
+    ## teacher abbrev.
+
+    week_startdate="$1"
+    ## weekday 0=monday
+    weekday="$2" 
+    ## convert multiple consequetive spaces and newline chars to single space
+    roster_line=$(echo ${3})
+    ## only proceed for non-empty and non single number lines
+    #if ( [[ "${roster_line}x" == "x" ]] || \
+	#	     [[ "${roster_line}" =~ ${roster_line_isnumber_re} ]] ); then
+    if [[ "${roster_line}x" == "x" ]]; then	
+	exit 1
+    else
+	if [[ ${DEBUG} ]]; then
+	    printf 1>&2 "\n"
+	    printf 1>&2 "week_startdate=\`%s', weekday=\`%s', roster_line=\`%s'\n" \
+			"${week_startdate}" "${weekday}" "${roster_line}"
+	    ## printf 1>&2 "%s#" "${roster_line[@]}"
+	    printf 1>&2 "\n"
+	fi
+    fi
+    ## original: BM3-Bioinformatica KKE      101 inf   (30)
+    #1. strip extra spaces:
+    roster_line_rest="${roster_line//  / }"
+    ## rest:     BM3-Bioinformatica KKE 101 inf (30)
+    ## 2. handle exception: roombumber '101 inf':
+    roster_line_rest="${roster_line_rest// inf/}"
+    ## rest:     BM3-Bioinformatica KKE 101 (30)
+    ## 3. exception: teacher_abbrev 'Surv':
+    roster_line_rest="${roster_line_rest//Surv/SURV}"
+    ## rest:     Toetsinzage P-toetse SURV G105 (45)
+    roomcapacity_re="[[:space:]]\(([0-9]+)\)$"
+    ## 4. strip roomcapacity:
+    ## 4.a add dummy capacity '(0)':
+    if [[ ! "${roster_line_rest}" =~ ${roomcapacity_re} ]]; then
+	roster_line_rest="${roster_line_rest} (0)"
+	if [[ ${DEBUG} ]]; then
+	    printf 1>&2 "\nEXCEPTION in %s: roster_line_rest \`%s' does not contain a roomcapacity; adding \`(0)'.\n" \
+		    "${FUNCNAME}" "${roster_line_rest}"
+	fi
+    fi
+    if [[ "${roster_line_rest}" =~ ${roomcapacity_re} ]]; then
+	roomcapacity_field_value="${BASH_REMATCH[1]}"
+	roster_line_rest="${roster_line_rest//(${roomcapacity_field_value})/}"
+	roster_line_rest="${roster_line_rest%% }"
+	if [[ ${DEBUG} ]]; then
+	    ## 4.b do the actual stripping:
+	    printf 1>&2 "%s: roomcapacity_field_value=\`%s', roster_line_rest=\`%s'\n" \
+			"${FUNCNAME}" "${roomcapacity_field_value}" "${roster_line_rest}"
+	fi
+    else
+	printf 1>&2 "\n.ANOMALITY: roster_line_rest \`%s' does not contain a roomcapacity.\n" \
+		    "${roster_line_rest}"
+	exit 1
+    fi
+    ## 5. strip the roomnumber:
+    roomnumber_re="([^[:space:]]+)[[:space:]]*$"
+    if [[ "${roster_line_rest}" =~ ${roomnumber_re} ]]; then
+	roomnumber_field_value="${BASH_REMATCH[1]}"
+	roster_line_rest="${roster_line_rest//${roomnumber_field_value}/}"
+	roster_line_rest="${roster_line_rest%% }"
+	if [[ ${DEBUG} ]]; then
+	    printf 1>&2 "%s: roomnumber_field_value=\`%s', roster_line_rest=\`%s'\n" \
+			"${FUNCNAME}" "${roomnumber_field_value}" "${roster_line_rest}"
+	fi
+    else
+	printf 1>&2 "\n.ANOMALITY: roster_line_rest \`%s' does not contain a roomnumber.\n" \
+		    "${roster_line_rest}"
+	exit 1
+    fi
+    ## 6. strip the teacher_abbrev:
+    teacherabbrev_re="[[:space:]]([A-Z]+)$"
+    if [[ "${roster_line_rest}" =~ ${teacherabbrev_re} ]]; then
+	teacherabbrev_field_value="${BASH_REMATCH[1]}"
+	roster_line_rest="${roster_line_rest// ${teacherabbrev_field_value}/}"
+	if [[ ${DEBUG} ]]; then
+	    printf 1>&2 "%s: teacherabbrev_field_value=\`%s', roster_line_rest=\`%s'\n " \
+			"${FUNCNAME}" "${teacherabbrev_field_value}" "${roster_line_rest}"
+	fi
+    else
+	printf 1>&2 "\n.ANOMALITY in %s: roster_line_rest \`%s' does not contain a teacherabbrev.\n" \
+		    "${FUNCNAME}" "${roster_line_rest}"
+	exit 1
+    fi
+    ## normal match
+    course_field_value=${roster_line_rest}
+    ## start processing
+    starttime="${starting_hours[${lesson_hour}]}:00"
+    ## BEGIN
+    vevent=("${ics_newline}BEGIN:VEVENT")
+    ## LOCATION
+    location_value="$(ret_vevent_location "${roomnumber_field_value}")"
+    vevent+=("LOCATION:${location_value}")
+    ## ORGANIZER
+    ## ";" cnparam ";" dirparam ";" sentbyparam) / (";" languageparam) /
+    vevent+=("${ics_organizer_value//${ics_newline}${ics_newline}/}")
+    ## ATTENDEE;ROLE=CHAIR
+    chair_value="$(ret_vevent_attendeechair "${teacherabbrev_field_value}")"
+    if [[ $? -eq 0 ]]; then
+	chair_value="ATTENDEE;ROLE=CHAIR;${chair_value}"		
+	chair_value="$(wrap_lines "${chair_value}")"		
+	vevent+=("${chair_value//${ics_newline}${ics_newline}/}")
+    fi
+    lesson_date="$(date -d "${week_startdate} + ${weekday} day" +"%Y%m%d")"
+    ## DTSTART
+    vevent+=("DTSTART;$(ret_vevent_dtstart "${lesson_date}" "${starttime}")")
+    ## DTEND
+    vevent+=("DTEND;$(ret_vevent_dtend "${lesson_date}" "${starttime}")")
+    ## DTSTAMP
+    vevent+=("DTSTAMP;TZID=${ics_dt_timezoneid}:$(date +"%Y%m%dT%H%M%S")")
+    ## UID
+    vevent+=("UID:${app_name}@${RANDOM}$(date +"%Y%m%d%H%M%S")")
+    ## SUMMARY
+    vevent+=("SUMMARY:$(ret_vevent_summary \
+    "${course_field_value}" "${teacher_field_value}" "${location_value}" )")
+    category_value="$(ret_vevent_category "${course_field_value}")"
+    vevent+=("CATEGORIES:${category_value}")
+    ## add PRIORITY for tests
+    if [[ "${labels_rosteritemcategory[test]}" == "${category_value}" ]]; then
+	vevent+=("PRIORITY:1")	
+    fi
+    ## CLASS: public, private or confidential
+    ## http://www.kanzaki.com/docs/ical/class.html
+    vevent+=("CLASS:PUBLIC")
+    ## TRANSP: indicates free/busy status in clients (opaque = busy)
+    ## http://www.kanzaki.com/docs/ical/transp.html
+    vevent+=("TRANSP:OPAQUE")
+    ## X-MOZ-SEND-INVITATIONS
+    vevent+=("X-MOZ-SEND-INVITATIONS:FALSE")
+    ## END
+    vevent+=("END:VEVENT")
+    printf "%s${ics_newline}" "${vevent[@]}"	
+}
+
+function parse_roster_lines_xml() {
+    ## return the text containing the roster items for this week in the xml //table[@class=data] field
+    xml_source="$1"
+    weekday="$2"
+    lesson_hour="$3"
+
+    ## starting with the first tr (lesson hour) element, select the n-th tr element,
+    ## where n=${lesson_hour}, essentially skipping the first one,
+    ## which contains row headings
+    weekday_offset=2
+    weekday_tdselector=$(( ${weekday} + ${weekday_offset} ))
+    q_xpath="//tr[1]/following-sibling::*[${lesson_hour}]/*[${weekday_tdselector}]/text()"
+    xmllint_args+=(--xpath "${q_xpath}")
+    res="$(${cmd_xmllint} "${xmllint_args[@]}" - <<<"${xml_source}" 2>/dev/null)"
+    if [[ $? -ne 0 ]]; then
+	#printf 1>&2 "\nerror:\n%s\n\n" "${res}"
+	return 1
+    else
+	## return the xml
+	res="${res//$'\n'/}"
+	res="${res//#/$'\n'}"
+	printf "%s\n" "${res}"
+	#printf 1>&2 "xmlres: '%s'\n" "${res}"
+    fi
+}
+
+function parse_roster_hours() {
+    week_startdate="$1"
+    xml_parsed="$2"
+    
+    ## wrapper (weekday 0=monday!)
+    for weekday in {0..5}; do 
+	for lesson_hour in {1..18}; do 
+	    res="$(parse_roster_lines_xml "${xml_parsed}" "${weekday}" "${lesson_hour}")"
+	    while read -r line; do
+		parsed_props="$(parse_roster_item "${week_startdate}" "${weekday}" "${line}")"
+		printf 1>&2 "."
+		printf "${parsed_props}"
+	    done<<<"${res}"
+	done
+    done 
+}
+
+
+function ret_group_id() {
+    ## return group_id for group_name $1
+    group_name="$1"
+    local group_id=
+    group_option_re="option value=\"([0-9]+)\">(${group_name,,})</option"
+    curl_params=(--silent)
+    while read -r line; do
+	if [[ "${line,,}" =~ ${group_option_re} ]]; then
+	    group_id="${BASH_REMATCH[1]}"   
+	    break
+	fi
+    done < <(${cmd_curl} "${curl_params[@]}" "${roster_url}" 2>/dev/null)
+    if [[ ${group_id} -gt 0 ]]; then
+	printf "%s" "${group_id}"
+    else
+	return 1
+    fi
+}
+
+function ret_weekly_timetable_parsedxml() {
+    ## wrapper for html and xml fetching and fixing
+    ## returns a valid xml snippet representing the weekly timetable
+    ## for group_id $1 and start_date $2
+    group_id="$1"
+    start_date="$2"
+    
+    xml_rawsource="$(ret_weekly_timetable_html "${group_id}" "${start_date}")"
+    if [[ $? -ne 0 ]]; then
+	printf "error: ret_weekly_timetable_html returned:\n%s\n" "${xml_rawsource}"
+	return 1
+    else 
+	xhtml_clean="$(fix_html "${xml_rawsource}")"
+	if [[ $? -ne 0 ]]; then
+	    printf "error: fix_html returned:\n%s\n" "${xhtml_clean}"
+	    return 1
+	else
+	    xml_parsed="$(parse_xml "${xhtml_clean}")"
+	    if [[ $? -ne 0 ]]; then
+		printf "error: parse_xml returned:\n%s\n" "${xml_parsed}"		
+		return 1
+	    else 
+		printf "%s" "${xml_parsed}"
+	    fi
+	fi
+    fi
+}
+
+function ret_weekly_timetable_html() {
+    ## use curl to fetch and return html for specified group and start
+    ## date
+    group_id="$1"
+    start_date="$2"
+    ## format needed for getting and parsing html: M/D/YYYY,
+    ## eg '1/2/2016' for the second of january 2016
+    start_date_untis="$(ret_untis_date "${start_date}")"
+    query_data="groep=${group_id}&StartWeek=${start_date_untis}"
+    curl_params=(--silent)
+    curl_params+=(--data "${query_data}")
+    curl_res="$(${cmd_curl} "${curl_params[@]}" "${roster_url}" 2>/dev/null)"
+    if [[ $? -ne 0 ]]; then
+	printf 1>&2 "error in %s\n\tusing data param \`%s' for group_id \`%s' \
+and start_date \`%s'.\n" \
+		    "${FUNCNAME}" "${query_data}" "${group_id}" "${start_date}"
+	return 1
+    else
+	printf "%s\n" "${curl_res}"
+    fi
+}
+
+function fix_html() {
+    ## use tidy to clean up incoming html
+    ## replace unclosed/invalid br elements ('<br>') with '#',
+    ## indicating a new line has been started (applicable to 'test'
+    ## courses).
+    html_rawsource="${1//<br>/#}"
+    tidy_args=(-asxml)
+    tidy_args+=(-utf8)
+    tidy_args+=(--doctype "omit")
+    tidy_args+=(--output-xml "yes")
+    tidy_args+=(-indent)
+    tidy_args+=(-clean)
+    tidy_args+=(-bare)
+    tidy_args+=(-numeric)
+    tidy_args+=(--enclose-text "yes")
+    tidy_args+=(-quiet)
+    res="$(${cmd_tidy} "${tidy_args[@]}" 2>/dev/null <<<"${html_rawsource}")"
+    if [[ $? -gt 1 ]]; then
+	printf "%s: error running tidy:\n%s\n" \
+	       "${FUNCNAME}" "${res}"
+	return 1
+    else
+	printf "%s\n" "${res}"
+    fi
+}
+
+function parse_xml() {
+    ## filter incoming cleaned html ($1) using xsl to select the table
+    ## element which contains the real timetable data.
+    ## returns the selected xml.
+    xhtml_clean="$1"
+    q_xpath='//table//table[@class="data"]'
+    xmllint_args+=(--xpath "${q_xpath}")
+    res="$(${cmd_xmllint} "${xmllint_args[@]}" - <<<"${xhtml_clean}" 2>/dev/null)"
+    if [[ $? -ne 0 ]]; then
+	printf "%s: error running xmllint:\n%s\n" \
+	       "${FUNCNAME}" "${res}"
+	return 1
+    else
+	## return the xml
+	printf "%s\n" "${res//\"/\'}"
+    fi
+}
+
+function ret_untis_date() {
+    ## return the German formatted date Untis uses.
+    ## eg, M/D/YYYY, stripping any leading zeroes for M and D
+    date="$1"
+    leadingzeroes_re="^0([0-9]+)$"
+    ## get month and day numbers, stripping any leading '0'
+    year="$(date -d "${date}" +'%Y')"
+    monthnum="$(date -d "${date}" +'%m')"
+    if [[ "${monthnum}" =~ ${leadingzeroes_re} ]]; then 
+	monthnum="${BASH_REMATCH[1]}"
+    fi
+    daynum="$(date -d "${date}" +'%d')"
+    if [[ "${daynum}" =~ ${leadingzeroes_re} ]]; then 
+	daynum="${BASH_REMATCH[1]}"
+    fi
+    ## return the result
+    printf "%s/%s/%s" \
+	   "${monthnum}" "${daynum}" "${year}"
+}
+
+function check_sanity() {
+    cmd_xmllint="$(type -p xmllint || return 1)"
+    XMLLINT_INDENT=2
+    xmllint_args=(--xmlout)
+    xmllint_args+=(--encode "UTF-8")
+    xmllint_args+=(--format)
+    xmllint_args+=(--nowrap)
+    xmllint_args+=(--html)
+    xmllint_args+=(--pretty "1")
+    cmd_curl="$(type -p curl || return 1)"
+    cmd_tidy="$(type -p tidy || return 1)"
+    if [[ -f "${output_path}x" ]]; then
+	if [[ "${overwrite_output}x" == "x" ]]; then 
+	    # TODO; add overwrite option
+	    die "output_path \`${output_path}' already exists and argument --overwrite-output not set.\n"
+	else
+	    printf 1>&2 "NOTICE: argument --overwrite-output is set; overwriting existing ics file \`%s'.\n" \
+			"${${output_path}}"
+	fi
+    fi
+    printf 1>&2 "%3s- creating temporary storage directory ... " " "
+    if [[ ! -d "${temp_storage_dir}" ]]; then
+	temp_storage_dir="$(mktemp -d "/tmp/${app_name}_temp_XXXXX")"
+	if [[ $? -ne 0 ]]; then
+	    printf 1>&2 "error.\n"
+	    printf -v msg_err "could not create temporary directory using \`%s'.\n" \
+		   "mktemp -d \"/tmp/${app_name}_temp_XXXXX\""
+	    die "${msg_err}"
+	else
+	    printf 1>&2 "done.\n%5s(\`%s')\n" \
+			" " "${temp_storage_dir}"
+	fi
+    else
+	printf 1>&2 "done.\n%5s(\`%s')\n" \
+		    " " "${temp_storage_dir}"
+    fi
+}
+
+function write_ics() {
+    ## creates ics file $1 using a temporary file 
+    tempfile="$(mktemp "/tmp/${app_name}.XXXX")"
+    printf "%s" "${ics_header}" > ${tempfile}
+    printf 1>&2 "%3s- merging weekly ics snippets ...\n"
+    for ics_snippet in ${temp_storage_dir}/*.ics; do
+	vevent_ics="$(<${ics_snippet})"
+	if [[ "${vevent_ics}x" == "x"  ]]; then
+	    printf 1>&2 " done. (no events found)\n"
+	else
+	    printf "%s${ics_newline}" "${vevent_ics}" >> ${tempfile}
+	    printf 1>&2 "%s" "."
+	    printf 1>&2 " done.\n"
+	fi
+    done
+    ## add the footer
+    printf "%s" "${ics_footer}" >> ${tempfile}
+    replace_newline_with_crlf "${tempfile}" "${output_path}"
+    printf 1>&2 " done.\n"
+}
+
+
+## main
+printf 1>&2 ">>> preparing to create ics file from Untis roster\n"
+curdir="$(pwd)"
+declare arg_settings_file arg_roster_url arg_group_name \
+	arg_output_path arg_symlink_path arg_relative_symlink \
+	arg_standard_group_size arg_weeks_ahead \
+	arg_lessonduration_minutes arg_teachers_csv_path arg_courses_csv_path \
+	arg_overwrite_output arg_overwrite_symlink  \
+	arg_ics_organizer_email arg_ics_organizer_cn arg_ics_organizer_sentby_email \
+	arg_people_lookup_url_base arg_ics_organizer_dirurl
+
+declare settings_file roster_url group_name output_path \
+	symlink_path relative_symlink \
+	standard_group_size weeks_ahead lessonduration_minutes \
+	teachers_csv_path courses_csv_path \
+	overwrite_output overwrite_symlink \
+	ics_organizer_email ics_organizer_cn ics_organizer_sentby_email \
+	people_lookup_url_base ics_organizer_dirurl \
+	cmd_xmllint cmd_curl cmd_tidy
+declare -a xmllint_args errors
+declare -A csv_paths labels_courses labels_teachers labels_roomcapacity
+
+printf 1>&2 "%3s- analyzing command line arguments ... " " "
+analyze_command_line "$@"
+if [[ $? -ne 0 ]]; then
+    printf 1>&2 " error.\n"
+    die "errors encountered analyzing command line arguments."
+else
+    printf 1>&2 " done.\n"
+fi
+
+if [[ "${arg_settings_file}x" == "x" ]]; then
+    ## analyze command line arguments and set appropriate variables
+    overwrite_output="${arg_overwrite_output}"
+    overwrite_symlink="${arg_overwrite_symlink}"
+    roster_url="${arg_roster_url}"
+    group_name="${arg_group_name}"
+    output_path="${arg_output_path:-${curdir}/${group_name}_$(date +'%Y%m%dT%H%M%S').ics}"
+    symlink_path="${arg_symlink_path:-}"
+    relative_symlink="${arg_relative_symlink:-}"
+    temp_storage_dir="${arg_temp_storagedir}"
+    standard_group_size="${arg_standard_group_size:-${default_standard_group_size}}"
+    weeks_ahead="${arg_weeks_ahead:-${default_weeks_ahead}}"
+    lessonduration_minutes="${arg_lessonduration_minutes:-${default_lessonduration_minutes}}"
+    ics_organizer_email="${arg_ics_organizer_email:-${default_ics_organizer_email}}"
+    ics_organizer_cn="${arg_ics_organizer_cn:-${default_ics_organizer_cn}}"
+    ics_organizer_sentby_email="${arg_ics_organizer_sentby_email:-${default_ics_organizer_sentby_email}}"
+    people_lookup_url_base="${arg_people_lookup_url_base:-${default_people_lookup_url_base}}"
+    ics_organizer_dirurl="${arg_ics_organizer_dirurl:-${default_ics_organizer_dirurl}}"
+    csv_paths["courses"]="${arg_courses_csv_path:-${curdir}/${default_courses_csv_filename}}"
+    csv_paths["teachers"]="${arg_teachers_csv_path:-${curdir}/${default_teachers_csv_filename}}"
+    if [[ "${arg_roster_url}x" == "x" ]] && [[ "${roster_url}x" == "x" ]]; then
+	errors+=("required argument -u|--roster-url not specfied.")
+    fi
+    if [[ "${arg_group_name}x" == "x" ]] && [[ "${group_name}x" == "x"  ]]; then
+	errors+=("required argument -g|--group-name not specfied.")
+    fi
+    if [[ ${#errors[@]} -gt 0 ]]; then
+	printf -v msg_error "%s\n" "${errors[@]}"
+	die "${msg_error}"
+    fi
+else
+    ## source settings file to fill variables
+    if [[ ! -f "${arg_settings_file}" ]]; then
+	die "error: specified settings file \`${arg_settings_file}' not found."
+    else
+	printf 1>&2 "%3s- sourcing settings file \`%s' ... " \
+		    " " "${arg_settings_file}"
+	source "${arg_settings_file}"
+	if [[ $? -ne 0 ]]; then
+	    die "error sourcing settings file\`${arg_settings_file}'"
+	else
+	    printf 1>&2 " done.\n"
+	fi
+	overwrite_output="${overwrite_output:-}"
+	overwrite_symlink="${overwrite_symlink:-}"
+	#roster_url="${roster_url}"
+	#group_name="${group_name}"
+	output_path="${output_path:-${curdir}/${group_name}_$(date +'%Y%m%dT%H%M%S').ics}"
+	temp_storage_dir="${temp_storagedir:-}"
+	standard_group_size="${standard_group_size:-${default_standard_group_size}}"
+	weeks_ahead="${weeks_ahead:-${default_weeks_ahead}}"
+	lessonduration_minutes="${lessonduration_minutes:-${default_lessonduration_minutes}}"
+	ics_organizer_email="${ics_organizer_email:-${default_ics_organizer_email}}"
+	ics_organizer_cn="${ics_organizer_cn:-${default_ics_organizer_cn}}"
+	ics_organizer_sentby_email="${ics_organizer_sentby_email:-${default_ics_organizer_sentby_email}}"	
+	people_lookup_url_base="${people_lookup_url_base:-${default_people_lookup_url_base}}"
+	ics_organizer_dirurl="${ics_organizer_dirurl:-${default_ics_organizer_dirurl}}"
+	csv_paths["courses"]="${courses_csv_path:-${curdir}/${default_courses_csv_filename}}"
+	csv_paths["teachers"]="${teachers_csv_path:-${curdir}/${default_teachers_csv_filename}}"
+    fi
+fi
+if [[ "${roster_url}x" == "x" ]]; then
+    errors+=("required argument -u|--roster-url not specified.")
+fi
+if  [[ "${group_name}x" == "x"  ]]; then
+    errors+=("required argument -g|--group-name not specified.")
+fi
+if [[ ${#errors[@]} -gt 0 ]]; then
+    printf -v msg_error "%s\n" "${errors[@]}"
+    die "${msg_error}"
+fi
+
+## required arguments
+declare -a errors
+if [[ "${arg_roster_url}x" == "x" ]] && [[ "${roster_url}x" == "x" ]]; then
+    errors+=("required argument -u|--roster-url not specfied.")
+fi
+if [[ "${arg_group_name}x" == "x" ]] && [[ "${group_name}x" == "x"  ]]; then
+    errors+=("required argument -g|--group-name not specfied.")
+fi
+if [[ ${#errors[@]} -gt 0 ]]; then
+    printf -v msg_error "%s\n" "${errors[@]}"
+    die "${msg_error}"
+fi
+
+ics_organizer_cnparam="${app_name}"
+ics_organizer_dirparam="DIR=\"${roster_url}\""
+ics_organizer_mailtoparam="MAILTO:${ics_organizer_email}"
+ics_organizer_cnparam="CN=${ics_organizer_cn}"
+ics_organizer_sentbyparam="SENT-BY=\"MAILTO:${ics_organizer_sentby_email}\""
+ics_organizer_value="ORGANIZER;${ics_organizer_cnparam};${ics_organizer_dirparam};${ics_organizer_sentbyparam}:${ics_organizer_mailtoparam}"
+starting_hours=("08:00"
+		"08:45"
+		"09:30"
+		"10:30"
+		"11:15"
+		"12:00"
+		"12:45"
+		"13:30"
+		"14:15"
+		"15:15"
+		"16:00"
+		"16:45"
+		"17:30"
+		"18:15"
+		"19:00"
+		"19:45"
+		"20:30"
+		"21:15"
+		"22:00")
+untis_dateformat="%m/%d/%Y"
+ics_dt_timeformat="T%H%M%S"
+## newline seperator for ICS lines
+ics_newline="\n"
+## max chars per line in ICS files; see wrap_lines function
+ics_maxwidth="73"
+label_unknown="(onbekend)"
+ics_dt_timezoneid="Europe/Amsterdam"
+
+ics_header="""\
+BEGIN:VCALENDAR
+VERSION:2.0
+CALSCALE:GREGORIAN
+PRODID:-//Lacocina//NONSGML HAN Rooster//EN
+BEGIN:VTIMEZONE
+TZID:${ics_dt_timezoneid}
+X-LIC-LOCATION:${ics_dt_timezoneid}
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+TZNAME:CEST
+DTSTART:19700329T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+TZNAME:CET
+DTSTART:19701025T030000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+END:STANDARD
+END:VTIMEZONE"""
+ics_footer="""
+END:VCALENDAR"""
+
+labels_roomcapacity[small]="Leslokaal"
+labels_roomcapacity[moderate]="Praktijklokaal"
+labels_roomcapacity[large]="Collegezaal"
+labels_roomcapacity[default]="Lokaal"
+labels_roomcapacity[kantine]=""
+declare -A labels_rosteritemcategory
+labels_rosteritemcategory[test]="Toets"
+labels_rosteritemcategory[lab]="Practicum"
+labels_rosteritemcategory[lesson]="Les"
+labels_rosteritemcategory[lecture]="College"
+labels_rosteritemcategory[guestlecture]="Gastcollege"
+labels_rosteritemcategory[workshop]="Werkcollege"
+
+array_from_csv "courses" "2" || exit 1
+array_from_csv "teachers" "5" || exit 1
+
+check_sanity || exit 1
+
+printf 1>&2 "<<< done preparing.\n"
+
+printf 1>&2 ">>> getting rosters for group \`%s' from \`%s'.\n" \
+	    "${group_name}" "${roster_url}"
+#output_path standard_group_size weeks_ahead lessonduration_minutes force_overwrite csv_paths
+
+## append default to array
+labels_teachers[-]="(no teacher) mailto:(n/a) dir:(n/a)"
+
+
+ics_organizer_value="$(wrap_lines "${ics_organizer_value}")"
+
+printf -v rundate_real "%(%Y%m%d)T"
+printf -v rundate_weeknum "%(%V)T" 
+## current weekday num (monday=1)
+printf -v rundate_weekdaynum "%(%u)T"
+## substract n days from the current date to get the first day
+## (monday) of this week, where n is the current day number - 1
+rundate_firstdayofweek="$(date -d \
+"${rundate_real} - $(( ${rundate_weekdaynum} - 1)) day" +"%Y%m%d")"
+
+## first run
+week_counter=0
+cur_date="${rundate_firstdayofweek}"
+
+printf 1>&2 "%3s- getting id for group \`%s' ... " \
+	    " " "${group_name}"
+group_id="$(ret_group_id "${group_name}")"
+if [[ $? -ne 0 ]]; then
+    printf 1>&2 "errors occured.\n"
+    printf -v msg_error "could not get group_id for group \`%s' using url \`%s'\n" \
+	   "${group_name}" "${roster_url}"
+    die "${msg_error}"
+else
+    printf 1>&2 "done.\n%5s(%d)\n" \
+		" " "${group_id}"
+fi
+#printf 1>&2 "%3sconverting timetable website to ics ...\n" " "
+printf 1>&2 "%3s- getting and processing weekly timetables ...\n" " "
+
+while ((0<=week_counter && week_counter<=weeks_ahead - 1)); do
+    cur_weeknum=$(date -d "${cur_date}" +"%V")
+    cur_year=$(date -d "${cur_date}" +"%Y")
+    cur_filename="${cur_year}_${cur_weeknum}.han-roster-events.ics"
+    printf 1>&2 "%5s* week %2s of %s: %s/%s " \
+		" " "$((week_counter + 1))" "${weeks_ahead}" "${cur_weeknum}" "${cur_year}"
+    ## get xml with this weeks timetable information
+    xml_parsed="$(ret_weekly_timetable_parsedxml "${group_id}" "${cur_date}")"
+    if [[ $? -ne 0 ]]; then
+	printf 1>&2 "error getting or parsing xml:\n%s\n" "${xml_parsed}"
+	break
+    fi
+    res="$(parse_roster_hours "${cur_date}" "${xml_parsed}")"
+    if [[ $? -eq 0 ]] && [[ -f "${temp_storage_dir}/${cur_filename}" ]]; then 
+	rm -f "${temp_storage_dir}/${cur_filename}"
+    fi
+    printf "%s\n" "${res}" > "${temp_storage_dir}/${cur_filename}"
+    printf 1>&2 " done\n" 
+    ## forward one week
+    cur_date="$(date -d "${cur_date} + 7days" +"%Y%m%d")"
+    (( week_counter++ ))
+done
+
+write_ics
+
+printf 1>&2 "<<< all done.\n\n"
+printf 1>&2 "%2sresulting ics calendar published in:\n" \
+	    "-"
+printf "%s" "${output_path}"
+if [[ "${symlink_path}x" != "x" ]]; then
+    if [[ "${relative_symlink}x" == "x" ]]; then 
+	printf 1>&2 "\n\n%2screating symbolic link \`%s' => \`%s' ... " \
+		"-" "${symlink_path}" "${output_path}"
+    else
+	printf 1>&2 "\n\n%2screating symbolic link \`%s' => \`%s' ... " \
+		"-" "${symlink_path}" "${relative_symlink}"
+    fi    
+    if [[ "${symlink_path}" == "${output_path}" ]]; then
+	printf 1>&2 "skipping\n(output path and symlink are the same).\n"
+	exit 1
+    else
+	if [[ -e "${symlink_path}" ]]; then
+	    if [[ -L "${symlink_path}" ]]; then
+		abs_target="$(readlink -f "${symlink_path}")"
+		if [[ "${abs_target}" == "${output_path}" ]]; then
+		    printf 1>&2 "done.\n(existing symlink was fine)\n"
+		else
+		    rel_target="$(readlink "${symlink_path}")"
+		    if [[ "${overwrite_symlink}x" == "x" ]]; then
+			
+			printf 1>&2 "error:\n%2s-\`%s' is an existing symlink to \`%s' (=\`%s').\n" \
+				" " "${symlink_path}" "${rel_target}" "${abs_target}"
+			printf 1>&2 "%2s- not overwriting (remove the symlink or use --force-overwrite).\n" \
+				    " " 
+			exit 1
+		    else
+			res="$(ln -sf "${output_path}" "${symlink_path}" 2>&1)"
+			if [[ $? -ne 0 ]]; then
+			    printf 1>&2 "error.\n(%s)\n" "${res}"
+			    exit 1
+			else
+			    printf 1>&2 "done.\n"
+			fi	
+		    fi
+		fi
+	    else
+		printf 1>&2 "skipping\n(not overwriting existing file or directory).\n"
+		exit 1
+	    fi
+	else
+	    res="$(ln -s "${output_path}" "${symlink_path}" 2>&1)"
+	    if [[ $? -ne 0 ]]; then
+		printf 1>&2 "error.\n(%s)\n" "${res}"
+		exit 1
+	    else
+		printf 1>&2 "done.\n"
+	    fi	
+	fi
+    fi
+else
+    printf 1>&2 "\n"
+fi
+
