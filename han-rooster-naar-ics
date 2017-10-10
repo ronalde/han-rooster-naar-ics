@@ -22,10 +22,11 @@
 ##  You should have received a copy of the GNU General Public License
 ##  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ##
-## Source and documentation:    https://github.com/ronalde/untis2ics
+## Source and documentation:
+##  https://github.com/ronalde/han-rooster-naar-ics
 
 app_name="untis2ics"
-app_info_url="https://github.com/ronalde/untis2ics"
+app_info_url="https://github.com/ronalde/han-rooster-naar-ics"
 
 default_courses_csv_filename="data/courses.csv"
 default_teachers_csv_filename="data/teachers.csv"
