@@ -77,8 +77,10 @@ OPTIONAL ARGUMENTS
  -c|--courses-csv-path PATH	   Path to the csv file containing
        information on courses. Defaults to \`${default_courses_csv_filename}' in current
        directory.
- --temp-storage-dir PATH	   PATH to the directory containing (old and) temporary 
-       ics snippets. 
+ --temp-storage-dir PATH	   PATH to the directory to store
+       temporary ics snippets. Old ics files found in this directory
+       are used in the final ics file, so set this to retain
+       historical information.
  --ics-organizer-email ADDRESS	   Sets the MAILTO organizer field to ADDRESS in the ics.
  --ics-organizer-cn COMMON_NAME	   Sets the CN organizer field to COMMON_NAME in the ics.
  --ics-organizer-sentby-email ADDRESS 
@@ -885,7 +887,7 @@ function check_sanity() {
 	fi
     fi
     printf 1>&2 "%3s- creating temporary storage directory ... " " "
-    if [[ ! -d "${temp_storage_dir}" ]]; then
+    if [[ "${temp_storage_dir}x" == "x" ]]; then
 	temp_storage_dir="$(mktemp -d "/tmp/${app_name}_temp_XXXXX")"
 	if [[ $? -ne 0 ]]; then
 	    printf 1>&2 "error.\n"
@@ -897,6 +899,18 @@ function check_sanity() {
 			" " "${temp_storage_dir}"
 	fi
     else
+	if [[ ! -d "${temp_storage_dir}" ]]; then
+	    res="$(mkdir -pv "${temp_storage_dir}" 2>&1)"
+	    if [[ $? -ne 0 ]]; then
+		printf 1>&2 "error.\n"
+		printf -v msg_err "could not create specified temporary directory \`%s'.\nmkdir returned error:\n%s\n" \
+		   "${temp_storage_dir}" "${res}"
+		die "${msg_err}"
+	    else
+		printf 1>&2 "done.\n%5s(\`%s')\n" \
+			    " " "${temp_storage_dir}"
+	    fi
+	fi
 	printf 1>&2 "done.\n%5s(\`%s')\n" \
 		    " " "${temp_storage_dir}"
     fi
@@ -911,11 +925,10 @@ function write_ics() {
     for ics_snippet in ${temp_storage_dir}/*.ics; do
 	vevent_ics="$(<${ics_snippet})"
 	if [[ "${vevent_ics}x" == "x"  ]]; then
-	    printf 1>&2 " done. (no events found)\n"
+	    printf 1>&2 "x"
 	else
 	    printf "%s${ics_newline}" "${vevent_ics}" >> ${tempfile}
-	    printf 1>&2 "%s" "."
-	    printf 1>&2 " done.\n"
+	    printf 1>&2 "."
 	fi
     done
     ## add the footer

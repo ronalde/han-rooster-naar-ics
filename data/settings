@@ -4,6 +4,8 @@ roster_url="http://rooster.han.nl/SchoolplanFT_AS/rooster.asp"
 group_name="BML-2x"
 output_path="/srv/webserver-root/usr/share/wordpress/${group_name}_$(date +'%Y%m%dT%H%M%S').ics"
 symlink_path="/srv/webserver-root/usr/share/wordpress/han.ics"
+temp_storage_dir="temp-storage"
+
 standard_group_size=15
 weeks_ahead=12
 lessonduration_minutes=45
