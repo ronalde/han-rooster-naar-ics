@@ -1,12 +1,19 @@
 # README for HAN Rooster parser
 
-`han-rooster-parser` is a bash script which gathers the [rather flaky
-html page](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp) titled "Roosterinformatie FSK/IAS" containing roster information for a specific lesson group and translates that in to a valid iCalendar Specification
-(ICS) file[^icalspec] for easy automated consumption by any [iCalendar client application](#icalclients).
+`han-rooster-parser` is a bash script which gathers the
+[rather flaky html page](http://rooster.han.nl/SchoolplanFT_AS/rooster.asp)
+titled "Roosterinformatie FSK/IAS" containing roster information for a
+specific lesson group and translates that in to a valid iCalendar
+Specification (ICS) file[^icalspec] for easy automated consumption by
+any [iCalendar client application](#icalclients).
 
-   **DISCLAIMER**: *The script is tested only for the rosters for the "Faculteit Techniek en Life Sciences" (FSK) / "Institute for Applied Sciences" (IAS) department of the Hogeschool Arnhem Nijmegen (HAN), The Netherlands. The use of the script is not endorsed or supported by HAN.* 
+   **DISCLAIMER**: *The script is tested only for the rosters for the
+     "Faculteit Techniek en Life Sciences" (FSK) / "Institute for
+     Applied Sciences" (IAS) department of the Hogeschool Arnhem
+     Nijmegen (HAN), The Netherlands. The use of the script is not
+     endorsed or supported by HAN.*
 
-## Quick start
+## Installation and quick start
 
 Download and extract the source using git:
 
@@ -16,10 +23,14 @@ git clone https://github.com/ronalde/han-rooster-naar-ics.git
 git pull
 ```
 
-Alternatively, [the tarball of the current master](https://lacocina.nl/mpd-configure) can be downloaded and unpacked in the current directory using `wget` and `tar`:
-````bash
+Alternatively,
+[the tarball of the current master](https://lacocina.nl/mpd-configure)
+can be downloaded and unpacked in the current directory using `wget`
+and `tar`:
+
+```bash
 wget https://github.com/ronalde/han-rooster-naar-ics/archive/master.tar.gz -O - | tar --strip-components=1 -zxf -
-````
+```
 
 After this the script can be run from the command line like this:
 
@@ -63,22 +74,30 @@ symlink_path="${webserver_root}/han.ics"
 
 ## Rationale
 
-The source webpage is created by HAN using the *Gruber&Petters/Grupet GP Untis*[^gpuntis] timetabling/roster
+The source webpage is created by HAN using the *Gruber&Petters/Grupet
+GP Untis*[^gpuntis] timetabling/roster
 software.  
 Although Untis natively supports ICS-exporting, the school has chosen
 to *not* use that important feature for students. Although they did
-develop/buy a custom non-native 'webapp' for iOS and Android (called [han4me](https://frankthuss.wordpress.com/2011/08/23/han4me-de-nieuwe-roosterapp-voor-han-docenten-en-studenten-yam-hanicto/) ), they
-chose to *not* make it accessible using a normal webbrowser. (Although students of course could use developer tools of modern browsers to use it anyhow.) 
+develop/buy a custom non-native 'webapp' for iOS and Android (called
+[han4me](https://frankthuss.wordpress.com/2011/08/23/han4me-de-nieuwe-roosterapp-voor-han-docenten-en-studenten-yam-hanicto/)
+), they chose to *not* make it accessible using a normal
+webbrowser. (Although students of course could use developer tools of
+modern browsers to use it anyhow.)
 
-This
-means students are left with the rather unusable 90's web site
-for viewing this important data. 
+This means students are left with the rather unusable 90's web site
+for viewing this important data.
 
 Furthermore, the script is aimed at users/admins who prefer to keep
 their data theirs and not 'share' personal information with all kinds
 of privacy mangling companies.
 
-**NOTE**: *Former HAN-student [Stephan Heijl](http://stephanheijl.com/) has done [something comparable in python](https://github.com/StephanHeijl/RoosterLoader) a few years back and even offers a live website for end users to select their group and publish ics files.*   
+  **NOTE**:
+  *Former HAN-student [Stephan Heijl](http://stephanheijl.com/) has
+  done
+  [something comparable in python](https://github.com/StephanHeijl/RoosterLoader)
+  a few years back and even offers a live website for end users to
+  select their group and publish ics files.*
 
 
 ## System requirments
@@ -92,11 +111,11 @@ existence in the $PATH and exits when they aren't found:
 
 ## Design
 
-Because the source webserver
-only support HTTP POST parameters, the lesson group is specified
-through the `group_id` field, which is looked up by the script on the
-website using the `group_name`. The `group_name` field is only used
-internally for constructing a file name for the resulting ics file.
+Because the source webserver only support HTTP POST parameters, the
+lesson group is specified through the `group_id` field, which is
+looked up by the script on the website using the `group_name`. The
+`group_name` field is only used internally for constructing a file
+name for the resulting ics file.
 
 The script gathers information by week, starting with the week in
 which the script is run, and stops `weeks_ahead` weeks further. Each
