@@ -78,7 +78,7 @@ Furthermore, the script is aimed at users/admins who prefer to keep
 their data theirs and not 'share' personal information with all kinds
 of privacy mangling companies.
 
-**NOTE**: *Former HAN-student [Stephan Heijl](http://stephanheijl.com/) has done [something comparable in python](https://github.com/StephanHeijl/RoosterLoader) a few years back and even offers a live website for end users to select their group.*   
+**NOTE**: *Former HAN-student [Stephan Heijl](http://stephanheijl.com/) has done [something comparable in python](https://github.com/StephanHeijl/RoosterLoader) a few years back and even offers a live website for end users to select their group and publish ics files.*   
 
 
 ## System requirments
