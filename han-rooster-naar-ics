@@ -694,11 +694,11 @@ function parse_roster_item() {
 }
 
 function parse_roster_lines_xml() {
-    ## return the text containing the roster items for this week in the xml //table[@class=data] field
+    ## return the text containing the roster items for this week in
+    ## the xml //table[@class=data] field
     xml_source="$1"
     weekday="$2"
     lesson_hour="$3"
-
     ## starting with the first tr (lesson hour) element, select the n-th tr element,
     ## where n=${lesson_hour}, essentially skipping the first one,
     ## which contains row headings
@@ -711,6 +711,7 @@ function parse_roster_lines_xml() {
 	#printf 1>&2 "\nerror:\n%s\n\n" "${res}"
 	return 1
     else
+	declare -p res 1>&2
 	## return the xml
 	res="${res//$'\n'/}"
 	res="${res//#/$'\n'}"
