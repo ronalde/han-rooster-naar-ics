@@ -948,12 +948,6 @@ and start_date \`%s'.\n" \
 
  function check_sanity() {
      cmd_xmllint="$(type -p xmllint || return 1)"
-     xmllint_args=(--xmlout)
-     xmllint_args+=(--encode "UTF-8")
-     xmllint_args+=(--format)
-     xmllint_args+=(--nowrap)
-     xmllint_args+=(--html)
-     xmllint_args+=(--pretty "1")
      cmd_curl="$(type -p curl || return 1)"
      cmd_tidy="$(type -p tidy || return 1)"
      if [[ -f "${output_path}x" ]]; then
@@ -1137,6 +1131,13 @@ and start_date \`%s'.\n" \
 	 cmd_xmllint cmd_curl cmd_tidy
  declare -a xmllint_args errors a_symlink_names
  declare -A csv_paths labels_courses labels_teachers labels_roomcapacity
+
+ xmllint_args=(--xmlout)
+ xmllint_args+=(--encode "UTF-8")
+ xmllint_args+=(--format)
+ xmllint_args+=(--nowrap)
+ xmllint_args+=(--html)
+ xmllint_args+=(--pretty "1")
 
  printf 1>&2 "%3s- analyzing command line arguments ... " " "
  analyze_command_line "$@"
