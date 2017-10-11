@@ -104,6 +104,7 @@ ICS file.
 The timezone of the ICS file and the events within are currently fixed
 to CET/CEST with summer/winter time (daylight savings).
 
+**NOTE**: *Former HAN-student [Stephan Heijl](http://stephanheijl.com/) has done [something comparable in python](https://github.com/StephanHeijl/RoosterLoader) a few years back and even offers a live website for end users to select their group.*   
 
 ## Usage scenario
 
