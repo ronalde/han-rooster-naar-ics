@@ -63,11 +63,10 @@ REQUIRED ARGUMENTS
 
 OPTIONAL ARGUMENTS
  -o|--output-path PATH     	   Defaults to GROUPNAME_CURRENTDATE.ics in current dir.
- -l|--symlink-path PATH   	   Set the canonical PATH to which OUTPUTPATH should be 
-      symlinked.
- -r|--relative-symlink PATH   	   Set the relative PATH to which OUTPUTPATH should be 
-      symlinked.
-
+ -l|--symlink-names LINKNAME [LINKNAME]
+       When set, a symbolic link will be created to output_path in the
+       directory where output_path is stored. Expects a single link
+       name or a space separated list of link names.
  -d|--lessons-duration-minutes INT Defaults to ${default_lessonduration_minutes}
  -s|--standard-group-size INT  	   Defaults to ${default_standard_group_size}
  -a|--weeks-ahead INT	     	   Defaults to ${default_weeks_ahead}
@@ -89,7 +88,8 @@ OPTIONAL ARGUMENTS
  --people-lookup-url URL	   URL is used in the instruction displayed when a teacher 
        is not found in the teachers csv file.
  -wo|--overwrite-output            If set, overwrites the output ics file when it exists.
- -ws|--overwrite-symlink           If set, overwrites the symlink when it exists.
+ -ws|--overwrite-symlinks          If set, overwrites existing symlinks (but not files 
+       or directories).
 
 Background information:
 ${app_info_url}
@@ -136,20 +136,11 @@ function analyze_command_line() {
                     continue
 		fi
 		;;
-            -l|--symlink-path)
+            -l|--symlink-names)
 		if [[ "${2}x" == "x" ]]; then
 		    die "argument \`$1' requires a valid PATH."
 		else
-		    arg_symlink_path="$2"
-		    shift 2
-                    continue
-		fi
-		;;
-            -r|--relative-symlink)
-		if [[ "${2}x" == "x" ]]; then
-		    die "argument \`$1' requires a valid PATH."
-		else
-		    arg_relative_symlink="$2"
+		    arg_symlink_names="$2"
 		    shift 2
                     continue
 		fi
@@ -277,8 +268,8 @@ function analyze_command_line() {
 		shift
                 continue
 		;;	    
-            -ws|--overwrite-symlink)
-		arg_overwrite_symlink=True
+            -ws|--overwrite-symlinks)
+		arg_overwrite_symlinks=True
 		shift
                 continue
 		;;	    
@@ -306,12 +297,11 @@ function analyze_command_line() {
     if [[ "${arg_settings_file}x" == "x" ]]; then
 	## analyze command line arguments and set appropriate variables
 	overwrite_output="${arg_overwrite_output}"
-	overwrite_symlink="${arg_overwrite_symlink}"
+	overwrite_symlinks="${arg_overwrite_symlinks}"
 	roster_url="${arg_roster_url}"
 	group_name="${arg_group_name}"
 	output_path="${arg_output_path:-${curdir}/${group_name}_$(date +'%Y%m%dT%H%M%S').ics}"
-	symlink_path="${arg_symlink_path:-}"
-	relative_symlink="${arg_relative_symlink:-}"
+	a_symlink_names=(${arg_symlink_names:-})
 	temp_storage_dir="${arg_temp_storage_dir}"
 	standard_group_size="${arg_standard_group_size:-${default_standard_group_size}}"
 	weeks_ahead="${arg_weeks_ahead:-${default_weeks_ahead}}"
@@ -333,11 +323,13 @@ function analyze_command_line() {
 	    printf -v msg_error "%s\n" "${errors[@]}"
 	    die "${msg_error}"
 	fi
+	printf 1>&2 " done.\n"
     else
 	## source settings file to fill variables
 	if [[ ! -f "${arg_settings_file}" ]]; then
 	    die "error: specified settings file \`${arg_settings_file}' not found."
 	else
+	    printf 1>&2 " done.\n"
 	    printf 1>&2 "%3s- sourcing settings file \`%s' ... " \
 			" " "${arg_settings_file}"
 	    source "${arg_settings_file}"
@@ -347,11 +339,12 @@ function analyze_command_line() {
 		printf 1>&2 " done.\n"
 	    fi
 	    overwrite_output="${overwrite_output:-}"
-	    overwrite_symlink="${overwrite_symlink:-}"
+	    overwrite_symlinks="${overwrite_symlinks:-}"
 	    #roster_url="${roster_url}"
 	    #group_name="${group_name}"
 	    printf -v timestamp '%(%Y%m%dT%H%M%S)T'
 	    output_path="${output_path:-${curdir}/${group_name}_${timestamp}.ics}"
+	    a_symlink_names=(${symlink_names:-})
 	    temp_storage_dir="${temp_storage_dir:-}"
 	    standard_group_size="${standard_group_size:-${default_standard_group_size}}"
 	    weeks_ahead="${weeks_ahead:-${default_weeks_ahead}}"
@@ -400,7 +393,7 @@ function array_from_csv() {
 		    "${FUNCNAME[0]}" "${datatype}" "${csvfile}"
 	return 1
     else
-	printf 1>&2 "%3s- getting %s from %s ..." \
+	printf 1>&2 "%3s- getting %s from \`%s' ..." \
 		    " " "${datatype}" "${csvfile}"
     fi
     case "${datatype}" in
@@ -425,7 +418,8 @@ function array_from_csv() {
 			    
 			    return 1
 	    else
-		printf 1>&2 "done.\n%5s(%d courses found)\n" \
+		printf 1>&2 "done.\n"
+		printf 1>&2 "%5s* %d courses found.\n" \
 			    " " "${#labels_courses[@]}"
 	    fi
 	    ;;
@@ -453,7 +447,8 @@ function array_from_csv() {
 		printf 1>&2 "errors encountered.\nno teachers found.\n"
 		return 1
 	    else
-		printf 1>&2 "done.\n%5s(%d teachers found)\n" \
+		printf 1>&2 "done.\n"
+		printf 1>&2 "%5s* %d teachers found.\n" \
 			    " " "${#labels_teachers[@]}"
 	    fi
 	    ;;
@@ -970,7 +965,7 @@ and start_date \`%s'.\n" \
 			 "${output_path}"
 	 fi
      fi
-     printf 1>&2 "%3s- creating temporary storage directory ... " " "
+     printf 1>&2 "%3s- managing temporary storage directory ... " " "
      if [[ "${temp_storage_dir}x" == "x" ]]; then
 	 temp_storage_dir="$(mktemp -d "/tmp/${app_name}_temp_XXXXX")"
 	 if [[ $? -ne 0 ]]; then
@@ -979,8 +974,11 @@ and start_date \`%s'.\n" \
 		    "mktemp -d \"/tmp/${app_name}_temp_XXXXX\""
 	     die "${msg_err}"
 	 else
-	     printf 1>&2 "done.\n%5s(\`%s')\n" \
-			 " " "${temp_storage_dir}"
+	     printf 1>&2 "done.\n"
+	     printf 1>&2 "%5s* \`%s' (%s).\n" \
+			 " " \
+			 "${temp_storage_dir}" \
+			 "using temporary directory"
 	 fi
      else
 	 if [[ ! -d "${temp_storage_dir}" ]]; then
@@ -991,12 +989,20 @@ and start_date \`%s'.\n" \
 			"${temp_storage_dir}" "${res}"
 		 die "${msg_err}"
 	     else
-		 printf 1>&2 "done.\n%5s(\`%s')\n" \
-			     " " "${temp_storage_dir}"
+		 printf 1>&2 "done.\n"
+		 printf 1>&2 "%5s* \`%s' (%s).\n" \
+			     " " \
+			     "${temp_storage_dir}" \
+			     "new storage directory created"
 	     fi
+	 else
+	     printf 1>&2 "done.\n"
+	     printf 1>&2 "%5s* \`%s' (%s).\n" \
+			 " " \
+			 "${temp_storage_dir}" \
+			 "reusing existing storage directory"
+	     
 	 fi
-	 printf 1>&2 "done.\n%5s(\`%s')\n" \
-		     " " "${temp_storage_dir}"
      fi
  }
 
@@ -1004,14 +1010,14 @@ and start_date \`%s'.\n" \
      ## creates ics file $1 using a temporary file 
      tempfile="$(mktemp "/tmp/${app_name}.XXXX")"
      printf "%s" "${ics_header}" > ${tempfile}
-     printf 1>&2 "%3s- merging weekly ics snippets ...\n" " "
+     printf 1>&2 "%3s- merging weekly ics snippets " " "
      for ics_snippet in ${temp_storage_dir}/*.ics; do
 	 vevent_ics="$(<${ics_snippet})"
 	 if [[ "${vevent_ics}x" == "x"  ]]; then
-	     printf 1>&2 "x"
+	     printf 1>&2 "%s" "-"
 	 else
 	     printf "%s\n" "${vevent_ics}" >> ${tempfile}
-	     printf 1>&2 "."
+	     printf 1>&2 "%s" "+"
 	 fi
      done
      ## add the footer
@@ -1035,7 +1041,7 @@ and start_date \`%s'.\n" \
 		"${roster_url}"
 	 die "${msg_error}"
      else
-	 printf 1>&2 "done.\n%5s(%d)\n" \
+	 printf 1>&2 "done.\n%5s* group_id=%d\n" \
 		     " " "${group_id}"
      fi
      # shellcheck disable=SC2183
@@ -1045,13 +1051,16 @@ and start_date \`%s'.\n" \
      printf -v rundate_weekdaynum "%(%u)T"
      ## substract n days from the current date to get the first day
      ## (monday) of this week, where n is the current day number - 1
-     declare -p rundate_real rundate_weekdaynum 1>&2
      ## first run
      week_counter=0
      rundate_firstdayofweek="$(date -d "${rundate_real} - $(( rundate_weekdaynum - 1 ))day" \
  +"%Y%m%d")"
      cur_date="${rundate_firstdayofweek}"
-     printf 1>&2 "%3s- getting and processing weekly timetables ...\n" " "
+     printf 1>&2 "%3s- fetching weekly timetables for group %s (id=%d) from \`%s' ...\n" \
+		 " " \
+		 "${group_name}" \
+		 "${group_id}" \
+		 "${roster_url}"
      ## process each week
      while ((0<=week_counter && week_counter<=weeks_ahead - 1)); do
 	 cur_weeknum="$(date -d "${cur_date}" "+%V")"
@@ -1081,27 +1090,52 @@ and start_date \`%s'.\n" \
      done
  }
 
+ function handle_symlinks() {
+     ## creates symlinks to output_path in its directory 
+     target_filename="$(basename "${output_path}")"
+     target_dir="$(dirname "$(readlink -f "${output_path}")")"
+     ln_args=(--symbolic)
+     ln_args+=(--no-target-directory)
+     declare -a symlinks_done
+     if [[ "${overwrite_symlinks}x" != "x" ]]; then
+	 ln_args+=(--force)
+     fi
+     for symlink_name in "${a_symlink_names[@]}"; do
+	 link_path="${target_dir}/${symlink_name}"
+	 if [[ -e "${link_path}" ]] && [[ ! -L "${link_path}" ]]; then
+	     printf 1>&2 "error in %s: will not overwrite existing file/directory \`%s'.\n" \
+			 "${FUNCNAME[0]}" \
+			 "${link_path}"
+	 else
+	     ln "${ln_args[@]}" "${target_filename}" "${link_path}"  || \
+		 return 1 && \
+		     symlinks_done+=("      ${link_path} -> ${target_filename}")
+	 fi
+     done
+     printf 1>&2 "%3s- symlinks created:\n" " "
+     printf 1>&2 "%s\n" "${symlinks_done[@]}"
+ }
+
  ## main
- printf 1>&2 ">>> preparing to create ics file from Untis roster\n"
  curdir="$(pwd)"
  declare arg_settings_file arg_roster_url arg_group_name \
 	 arg_temp_storage_dir \
-	 arg_output_path arg_symlink_path arg_relative_symlink \
+	 arg_output_path arg_symlink_path \
 	 arg_standard_group_size arg_weeks_ahead \
 	 arg_lessonduration_minutes arg_teachers_csv_path arg_courses_csv_path \
-	 arg_overwrite_output arg_overwrite_symlink  \
+	 arg_overwrite_output arg_overwrite_symlinks  \
 	 arg_ics_organizer_email arg_ics_organizer_cn arg_ics_organizer_sentby_email \
 	 arg_people_lookup_url_base arg_ics_organizer_dirurl
 
  declare roster_url group_name output_path \
-	 symlink_path relative_symlink \
+	 symlink_path \
 	 standard_group_size weeks_ahead lessonduration_minutes \
 	 teachers_csv_path courses_csv_path \
-	 overwrite_output overwrite_symlink \
+	 overwrite_output overwrite_symlinks \
 	 ics_organizer_email ics_organizer_cn ics_organizer_sentby_email \
 	 people_lookup_url_base ics_organizer_dirurl \
 	 cmd_xmllint cmd_curl cmd_tidy
- declare -a xmllint_args errors
+ declare -a xmllint_args errors a_symlink_names
  declare -A csv_paths labels_courses labels_teachers labels_roomcapacity
 
  printf 1>&2 "%3s- analyzing command line arguments ... " " "
@@ -1109,8 +1143,6 @@ and start_date \`%s'.\n" \
  if [[ $? -ne 0 ]]; then
      printf 1>&2 " error.\n"
      die "errors encountered analyzing command line arguments."
- else
-     printf 1>&2 " done.\n"
  fi
 
  ## required arguments
@@ -1193,74 +1225,15 @@ END:VCALENDAR"""
 
  check_sanity || exit 1
 
- printf 1>&2 "<<< done preparing.\n"
-
- printf 1>&2 ">>> getting rosters for group \`%s' from \`%s'.\n" \
-	     "${group_name}" "${roster_url}"
- #output_path standard_group_size weeks_ahead lessonduration_minutes force_overwrite csv_paths
-
  ## append default to array
  labels_teachers[-]="(no teacher) mailto:(n/a) dir:(n/a)"
-
- process_weeks
-
- write_ics
-
- printf 1>&2 "<<< all done.\n\n"
- printf 1>&2 "%2sresulting ics calendar published in:\n" \
-	     "-"
- printf "%s" "${output_path}"
- if [[ "${symlink_path}x" != "x" ]]; then
-     if [[ "${relative_symlink}x" == "x" ]]; then 
-	 printf 1>&2 "\n\n%2screating symbolic link \`%s' => \`%s' ... " \
-		     "-" "${symlink_path}" "${output_path}"
-     else
-	 printf 1>&2 "\n\n%2screating symbolic link \`%s' => \`%s' ... " \
-		     "-" "${symlink_path}" "${relative_symlink}"
-     fi    
-     if [[ "${symlink_path}" == "${output_path}" ]]; then
-	 printf 1>&2 "skipping\n(output path and symlink are the same).\n"
-	 exit 1
-     else
-	 if [[ -e "${symlink_path}" ]]; then
-	     if [[ -L "${symlink_path}" ]]; then
-		 abs_target="$(readlink -f "${symlink_path}")"
-		 if [[ "${abs_target}" == "${output_path}" ]]; then
-		     printf 1>&2 "done.\n(existing symlink was fine)\n"
-		 else
-		     rel_target="$(readlink "${symlink_path}")"
-		     if [[ "${overwrite_symlink}x" == "x" ]]; then
-			 
-			 printf 1>&2 "error:\n%2s-\`%s' is an existing symlink to \`%s' (=\`%s').\n" \
-				     " " "${symlink_path}" "${rel_target}" "${abs_target}"
-			 printf 1>&2 "%2s- not overwriting (remove the symlink or use --force-overwrite).\n" \
-				     " " 
-			 exit 1
-		     else
-			 res="$(ln -sf "${output_path}" "${symlink_path}" 2>&1)"
-			 if [[ $? -ne 0 ]]; then
-			     printf 1>&2 "error.\n(%s)\n" "${res}"
-			     exit 1
-			 else
-			     printf 1>&2 "done.\n"
-			 fi	
-		     fi
-		 fi
-	     else
-		 printf 1>&2 "skipping\n(not overwriting existing file or directory).\n"
-		 exit 1
-	     fi
-	 else
-	     res="$(ln -s "${output_path}" "${symlink_path}" 2>&1)"
-	     if [[ $? -ne 0 ]]; then
-		 printf 1>&2 "error.\n(%s)\n" "${res}"
-		 exit 1
-	     else
-		 printf 1>&2 "done.\n"
-	     fi	
-	 fi
-     fi
- else
-     printf 1>&2 "\n"
+ process_weeks && write_ics
+ printf 1>&2 "%3s- resulting ics calendar published in:\n" \
+	     " "
+ printf "%6s%s" " " "${output_path}"
+ printf 1>&2 "\n"
+ if [[ "${a_symlink_names}x" != "x" ]]; then
+     handle_symlinks
  fi
+ printf 1>&2 "all done.\n\n"
 

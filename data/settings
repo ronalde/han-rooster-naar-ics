@@ -3,7 +3,8 @@
 roster_url="http://rooster.han.nl/SchoolplanFT_AS/rooster.asp"
 group_name="BML-2x"
 output_path="/srv/webserver-root/usr/share/wordpress/${group_name}_$(date +'%Y%m%dT%H%M%S').ics"
-symlink_path="/srv/webserver-root/usr/share/wordpress/han.ics"
+symlink_names="han.ics han"
+overwrite_symlinks=True
 temp_storage_dir="temp-storage"
 
 standard_group_size=15
@@ -15,4 +16,3 @@ ics_organizer_sentby_email="ronalde+hanroster@lacocina.nl"
 people_lookup_url_base="https://www1.han.nl/insite/sb/home_opl.xml?content=/onze_mensen"
 # https://www1.han.nl/insite/sb/home_opl.xml?content=/onze_mensen/persoon.xml?id=5973&lang=
 ics_organizer_dirurl="${people_lookup_url_base}/persoon.xml?"
-overwrite_symlink=True
