@@ -31,8 +31,8 @@
 # shellcheck disable=SC2181
 # shellcheck disable=SC1090
 
-app_name="untis2ics"
-app_info_url="https://github.com/ronalde/han-rooster-naar-ics"
+app_name="han-rooster-naar-ics"
+app_info_url="https://github.com/ronalde/${app_name}"
 
 default_courses_csv_filename="data/courses.csv"
 default_teachers_csv_filename="data/teachers.csv"
@@ -42,7 +42,7 @@ default_standard_group_size=15
 default_csv_sep=";"
 default_ics_organizer_email="someone@example.org"
 default_ics_organizer_cn="${app_name}"
-default_ics_organizer_sentby_email="${app_name}@lacocina.nl"
+default_ics_organizer_sentby_email="${app_name}@example.org"
 default_people_lookup_url_base="https://example.org/people?"
 default_ics_organizer_dirurl="${default_people_lookup_url_base}q="
 
@@ -305,7 +305,6 @@ function analyze_command_line() {
     fi
 }
 
-
 function array_from_csv() {
     ## fill $1 (labels_teachers or labels_courses) arrays by reading
     ## in $2 fields from csv files.
@@ -388,125 +387,6 @@ function array_from_csv() {
     esac
 }
 
-
-function ret_vevent_summary() {
-    ## return the value for a SUMMARY line for a VEVENT
-    course="$1"
-    course_lc="${course,,}"
-    ## use the courses label if it is defined
-    if [[ ${labels_courses[${course_lc}]+x} ]]; then
-	course_label="${labels_courses[${course_lc}]}"
-    else
-	course_label="${course}"
-    fi
-    printf "%s" "${course_label}"
-}
-
-function ret_vevent_category() {
-    ## return the value for a CATEGORY line for a VEVENT
-    course_lc="${1,,}"
-    category_value=""
-    case ${course_lc} in
-	*"toets"*|*"test"*) category_value="${labels_rosteritemcategory[test]}" ;;
-	*"prakt"*|*"pract"*|*"lab"*) category_value="${labels_rosteritemcategory[lab]}" ;;
-	*"colleg"*|*"lect"*) category_value="${labels_rosteritemcategory[lecture]}" ;;
-	*"worksh"*|*"slb"*|*"tutor"*|*"maple"*) category_value="${labels_rosteritemcategory[workshop]}" ;;
-	*) category_value="${labels_rosteritemcategory[lesson]}" ;;
-    esac
-    printf "%s" "${category_value}"
-}
-
-function ret_vevent_dtstart() {
-    ## return the value for a DTSTART line for a VEVENT
-    lesson_date="$1"
-    starttime="$2"
-    starttime_formatted="$(date -d "${starttime}" +"${ics_dt_timeformat}")"
-    #printf 1>&2  "dtstart: lesson_date=\`%s'\tstarttime=\`%s'\tstarttime_formatted=\`%s'\n" \
-    # "${lesson_date}" "${starttime}" "${starttime_formatted}"
-
-    printf "TZID=%s:%s%s" \
-	   "${ics_dt_timezoneid}" "${lesson_date}" "${starttime_formatted}"
-}
-
-function ret_vevent_dtend() {
-    ## return the value for a DTEND line for a VEVENT
-    lesson_date="$1"
-    starttime="$2"
-    endtime_formatted="$(date -d "${starttime} sec + \
-${lessonduration_minutes} min - 1 sec" +"${ics_dt_timeformat}")"
-
-    printf "TZID=%s:%s%s" \
-	   "${ics_dt_timezoneid}" "${lesson_date}" "${endtime_formatted}"
-}
-
-function ret_vevent_attendeechair() {
-    ## return the value for an ATTENDEE line for a VEVENT
-    teacher_field_value=$1
-    teacher_re="(.*)[[:space:]]+mailto:(.*)[[:space:]]+dir:(.*)$"
-    attendeechair=""
-    teacher_string="${labels_teachers[${teacher_field_value}]}"
-    if [[ "${teacher_string}" =~ ${teacher_re} ]]; then
-	teacher_name="${BASH_REMATCH[1]}"
-	teacher_mail="${BASH_REMATCH[2]}"
-	teacher_id="${BASH_REMATCH[3]}"
-	if [[ "${teacher_mail}x" == "x" ]]; then
-	    attendeechair="CN=${teacher_name}"	    
-	else
-	    if [[ "${teacher_id}x" == "x" ]]; then
-		attendeechair="CN=${teacher_name};RSVP=FALSE:MAILTO:${teacher_mail}"
-	    else
-		attendeechair="CN=${teacher_name};DIR=\"${ics_organizer_dirurl}${teacher_id}\";RSVP=FALSE:MAILTO:${teacher_mail}"		
-	    fi
-	fi
-	printf "%s" "${attendeechair}"
-    else
-	printf 1>&2 "\n%s: teacher abbreviation \`%s' not found in teachers csv file %s;\n \
-consider adding it using:\n%s\n" \
-		    "${FUNCNAME[0]}" "${teacher_field_value}" "${csv_paths["teachers"]}" "${people_lookup_url_base}"
-	return 1
-    fi
-
-}
-
-function ret_vevent_location() {
-    ## return the value for a LOCATION line for a VEVENT.
-    ## expects a room name (eg. 'L121') with or without a room
-    ## capacity between parenthesis 'G106 (45)'
-    room=${1//\\n/ }
-    room=$(echo ${room})
-    room_with_capacity_re="(.*)[[:space:]]\(([0-9]+)\)"
-    if [[ ${room} =~ ${room_with_capacity_re} ]]; then
-	## capacity field contains number
-	room_name=${BASH_REMATCH[1]}
-	room_capacity=${BASH_REMATCH[2]}
-	if ((30<=room_capacity && room_capacity<45)); then
-	    room_type="small"
-	elif ((45<=room_capacity && room_capacity<80)); then
-	    room_type="moderate"		
-	elif ((80<=room_capacity)); then
-	    room_type="large"
-	else
-	    room_type="default"
-	fi
-	location_value="${labels_roomcapacity[${room_type}]} ${room_name}"
-    else
-	## no capacity field or one with non-numeric items
-	for key in "${!labels_roomcapacity[@]}"; do
-	    if [[ "${room,,}" =~ ${key} ]]; then
-		location_value="${labels_roomcapacity[${key}]} ${room}"
-		break
-	    fi
-	done
-	if [[ "${location_value}x" == "x" ]]; then 
-	    location_value="${labels_roomcapacity[default]} ${room}"
-	fi
-	[[ ${DEBUG} ]] && \
-	    printf 1>&2 "%s: location_value=\`%s'\n" \
-		    "${FUNCNAME[0]}" "${location_value}"
-    fi
-    printf "%s" "${location_value}"    
-}
-
 function replace_newline_with_crlf() {
     ## convert all newline characters ('\n') to crlf ('\r\n')
     inputfile="$1"
@@ -546,114 +426,238 @@ function wrap_lines() {
     done
 }
 
+function ret_vevent_summary() {
+    ## return the value for a SUMMARY line for a VEVENT
+    course="$1"
+    course_lc="${course,,}"
+    ## use the courses label if it is defined
+    if [[ ${labels_courses[${course_lc}]+x} ]]; then
+	course_label="${labels_courses[${course_lc}]}"
+    else
+	course_label="${course}"
+    fi
+    printf "%s" "${course_label}"
+}
+
+function ret_vevent_category() {
+    ## return the value for a CATEGORY line for a VEVENT
+    course_lc="${1,,}"
+    category_value=""
+    case ${course_lc} in
+	*"toets"*|*"test"*)
+	    category_value="${labels_rosteritemcategory[test]}" ;;
+	*"prakt"*|*"pract"*|*"lab"*)
+	    category_value="${labels_rosteritemcategory[lab]}" ;;
+	*"colleg"*|*"lect"*)
+	    category_value="${labels_rosteritemcategory[lecture]}" ;;
+	*"worksh"*|*"slb"*|*"tutor"*|*"maple"*)
+	    category_value="${labels_rosteritemcategory[workshop]}" ;;
+	*)
+	    category_value="${labels_rosteritemcategory[lesson]}" ;;
+    esac
+    printf "%s" "${category_value}"
+}
+
+function ret_vevent_dtstart() {
+    ## return the value for a DTSTART line for a VEVENT
+    lesson_date="$1"
+    starttime="$2"
+    starttime_formatted="$(date -d "${starttime}" +"${ics_dt_timeformat}")"
+    printf "TZID=%s:%s%s" \
+	   "${ics_dt_timezoneid}" "${lesson_date}" "${starttime_formatted}"
+}
+
+function ret_vevent_dtend() {
+    ## return the value for a DTEND line for a VEVENT
+    lesson_date="$1"
+    starttime="$2"
+    endtime_formatted="$(date -d "${starttime} sec + \
+${lessonduration_minutes} min - 1 sec" +"${ics_dt_timeformat}")"
+    printf "TZID=%s:%s%s" \
+	   "${ics_dt_timezoneid}" "${lesson_date}" "${endtime_formatted}"
+}
+
+function ret_teacher_props() {
+    ## use teacher abbreviation $1 (id) to return newline separated
+    ## teacher name, email and id from lavels_teachers array
+    ## containing all csv records.
+    teacher_abbrev="$1"
+    teacher_csv="${labels_teachers[${teacher_abbrev}]}"
+    teacher_re="(.*)[[:space:]]+mailto:(.*)[[:space:]]+dir:(.*)$"
+    if [[ "${teacher_csv}" =~ ${teacher_re} ]]; then
+	printf '%s\n' "${BASH_REMATCH[@]:1}"
+    else
+	printf 1>&2 "\n%s: teacher abbreviation \`%s' not found in teachers csv file \`%s'.\n" \
+		    "${FUNCNAME[0]}" "${teacher_csvfield}" "${csv_paths["teachers"]}"
+	printf 1>&2 "consider adding it using:\n%s\n" \
+		     "${people_lookup_url_base}"
+	return 1
+    fi
+}
+
+function ret_vevent_attendeechair() {
+    ## return the value for an ATTENDEE line for a VEVENT
+    teacher_abrrev="$1"
+    ## make sure each array item contains a complete line 
+    IFS=$'\n' teacher_props=( $(ret_teacher_props "${teacher_abrrev}") )
+    teacher_name="${teacher_props[0]}"
+    teacher_mail="${teacher_props[1]}"
+    teacher_id="${teacher_props[2]}"
+    if [[ "${teacher_mail}x" == "x" ]]; then
+	attendeechair="CN=${teacher_name}"	    
+    else
+	if [[ "${teacher_id}x" == "x" ]]; then
+	    attendeechair="CN=${teacher_name};RSVP=FALSE:MAILTO:${teacher_mail}"
+	else
+	    attendeechair="CN=${teacher_name};DIR=\"${ics_organizer_dirurl}${teacher_id}\";RSVP=FALSE:MAILTO:${teacher_mail}"		
+	fi
+    fi
+    printf "%s" "${attendeechair}"
+}
+
+function ret_vevent_location() {
+    ## return the value for a LOCATION line for a VEVENT.
+    ## expects a room name (eg. 'L121') with or without a room
+    ## capacity between parenthesis 'G106 (45)'
+    room=${1//\\n/ }
+    room=$(echo ${room})
+    room_with_capacity_re="(.*)[[:space:]]\(([0-9]+)\)"
+    if [[ ${room} =~ ${room_with_capacity_re} ]]; then
+	## capacity field contains number
+	room_name=${BASH_REMATCH[1]}
+	room_capacity=${BASH_REMATCH[2]}
+	if (( 30<=room_capacity && room_capacity<45 )); then
+	    room_type="small"
+	elif (( 45<=room_capacity && room_capacity<80 )); then
+	    room_type="moderate"		
+	elif (( 80<=room_capacity )); then
+	    room_type="large"
+	else
+	    room_type="default"
+	fi
+	location_value="${labels_roomcapacity[${room_type}]} ${room_name}"
+    else
+	## no capacity field or one with non-numeric items
+	for key in "${!labels_roomcapacity[@]}"; do
+	    if [[ "${room,,}" =~ ${key} ]]; then
+		location_value="${labels_roomcapacity[${key}]} ${room}"
+		break
+	    fi
+	done
+	if [[ "${location_value}x" == "x" ]]; then 
+	    location_value="${labels_roomcapacity[default]} ${room}"
+	fi
+	[[ ${DEBUG} ]] && \
+	    printf 1>&2 "%s: location_value=\`%s'\n" \
+		    "${FUNCNAME[0]}" "${location_value}"
+    fi
+    printf "%s" "${location_value}"    
+}
+
+function parse_raw_roster_line() {
+    ## extracts and returns newline separated coursename,
+    ## roomcapacity, roomnumber and teacherabbrev field values for
+    ## roster line $1
+    roster_line_raw="$1"
+    printf -v error_header "\n%5sANOMALITY in %s" "${FUNCNAME[0]}"
+    ## convert multiple consequetive spaces and newline chars to single space
+    roster_line_stripped=$(echo ${roster_line_raw})
+    ## only proceed for non-empty and non single number lines
+    if [[ "${roster_line_stripped}x" == "x" ]]; then	
+	return 1
+    fi
+    ## original: `BM3-Bioinformatica KKE      101 inf   (30)'
+    ## 1. strip extra spaces:
+    roster_line_stripped="${roster_line_stripped//  / }"
+    ## rest:     `BM3-Bioinformatica KKE 101 inf (30)'
+    ## 2. handle exception for 'infinite' roomnumbers:
+    ##    roombumber '101 inf':
+    roster_line_fixed="${roster_line_stripped// inf/}"
+    ## rest:     `BM3-Bioinformatica KKE 101 (30)`
+    ## 3. handle exception for 'Surveillance' roomnumbers:
+    ##    teacher_abbrev 'Surv':
+    roster_line_fixed="${roster_line_fixed//Surv/SURV}"
+    roomcapacity_re="[[:space:]]\(([0-9]+)\)$"
+    ## 4. strip roomcapacity:
+    ## 4.a add dummy capacity '(0)':
+    if [[ ! "${roster_line_fixed}" =~ ${roomcapacity_re} ]]; then
+	roster_line_fixed="${roster_line_fixed} (0)"
+    fi
+    ## try again with dummy capacity field
+    if [[ ! "${roster_line_fixed}" =~ ${roomcapacity_re} ]]; then
+	printf 1>&2 "%s: roster_line_fixed=\`%s' does not match roomcapacity_re=\`%s'.\n" \
+		    "${error_header}" "${roster_line_fixed}" "${roomcapacity_re}"
+	return 1
+    else
+	roomcapacity="${BASH_REMATCH[1]}"
+	roster_line_rest="${roster_line_fixed//(${roomcapacity})/}"
+	roster_line_rest="${roster_line_rest%% }"
+	## 5. strip the roomnumber:
+	roomnumber_re="([^[:space:]]+)[[:space:]]*$"
+	if [[ "${roster_line_rest}" =~ ${roomnumber_re} ]]; then
+	    roomnumber="${BASH_REMATCH[1]}"
+	    roster_line_rest="${roster_line_rest//${roomnumber}/}"
+	    roster_line_rest="${roster_line_rest%% }"
+	else
+	    printf 1>&2 "%s: roster_line_rest=\`%s' does not contain a roomnumber.\n" \
+			"${error_header}" "${roster_line_rest}"
+	    return 1
+	fi
+	## 6. strip the teacher_abbrev:
+	teacherabbrev_re="[[:space:]]([A-Z]+)$"
+	if [[ "${roster_line_rest}" =~ ${teacherabbrev_re} ]]; then
+	    teacherabbrev="${BASH_REMATCH[1]}"
+	    coursename="${roster_line_rest// ${teacherabbrev}/}"
+	    ## return the results
+	    res=("${coursename}"
+		 "${roomcapacity}"
+		 "${roomnumber}"
+		 "${teacherabbrev}")
+	    printf "%s\n" "${res[@]}"
+	else
+	    printf 1>&2 "%s: roster_line_rest=\`%s' does not contain a teacherabbrev.\n" \
+			"${error_header}" "${roster_line_rest}"
+	    return 1
+	fi
+    fi
+}
+
+
 function parse_roster_item() {
-    ## parse (space separated) lesson name, teacher abbrev (#n-1) and
-    ## room (#n), in that particular numbered weekday and lesson
+    ## parse space separated lesson name, teacher abbrev (#n-1) and
+    ## room (#n), in that particular numbered weekday $2 and lesson
     ## hour. In case of tests (instead of lessons), a <br> multiline
     ## string, where each line consists of (space separated) test
     ## name, a hyphen '-' (n-1) and room (n).
-    ##
     ## Teacher abbrev (eg. SDKN) to name:
     ##  https://www1.han.nl/insite/sb/home_opl.xml?content=/onze_mensen
     ## tests (Description=Toets ...) have a hyphen '-' instead of a
     ## teacher abbrev.
-
     week_startdate="$1"
     ## weekday 0=monday
-    weekday="$2" 
-    ## convert multiple consequetive spaces and newline chars to single space
-    roster_line=$(echo ${3})
-    ## only proceed for non-empty and non single number lines
-    #if ( [[ "${roster_line}x" == "x" ]] || \
-	#	     [[ "${roster_line}" =~ ${roster_line_isnumber_re} ]] ); then
-    if [[ "${roster_line}x" == "x" ]]; then	
-	exit 1
-    else
-	if [[ ${DEBUG} ]]; then
-	    printf 1>&2 "\n"
-	    printf 1>&2 "week_startdate=\`%s', weekday=\`%s', roster_line=\`%s'\n" \
-			"${week_startdate}" "${weekday}" "${roster_line}"
-	    ## printf 1>&2 "%s#" "${roster_line[@]}"
-	    printf 1>&2 "\n"
-	fi
+    weekday="$2"
+    roster_line_raw="$3"
+    declare -a rosteritem_props
+    rosteritem_props=($(parse_raw_roster_line "${roster_line_raw}"))
+    if [[ $? -ne 0 ]] || [[ ${#rosteritem_props[@]} -ne 4 ]]; then
+	return 1
     fi
-    ## original: BM3-Bioinformatica KKE      101 inf   (30)
-    #1. strip extra spaces:
-    roster_line_rest="${roster_line//  / }"
-    ## rest:     BM3-Bioinformatica KKE 101 inf (30)
-    ## 2. handle exception: roombumber '101 inf':
-    roster_line_rest="${roster_line_rest// inf/}"
-    ## rest:     BM3-Bioinformatica KKE 101 (30)
-    ## 3. exception: teacher_abbrev 'Surv':
-    roster_line_rest="${roster_line_rest//Surv/SURV}"
-    ## rest:     Toetsinzage P-toetse SURV G105 (45)
-    roomcapacity_re="[[:space:]]\(([0-9]+)\)$"
-    ## 4. strip roomcapacity:
-    ## 4.a add dummy capacity '(0)':
-    if [[ ! "${roster_line_rest}" =~ ${roomcapacity_re} ]]; then
-	roster_line_rest="${roster_line_rest} (0)"
-	if [[ ${DEBUG} ]]; then
-	    printf 1>&2 "\nEXCEPTION in %s: roster_line_rest \`%s' does not contain a roomcapacity; adding \`(0)'.\n" \
-		    "${FUNCNAME[0]}" "${roster_line_rest}"
-	fi
-    fi
-    if [[ "${roster_line_rest}" =~ ${roomcapacity_re} ]]; then
-	roomcapacity_field_value="${BASH_REMATCH[1]}"
-	roster_line_rest="${roster_line_rest//(${roomcapacity_field_value})/}"
-	roster_line_rest="${roster_line_rest%% }"
-	if [[ ${DEBUG} ]]; then
-	    ## 4.b do the actual stripping:
-	    printf 1>&2 "%s: roomcapacity_field_value=\`%s', roster_line_rest=\`%s'\n" \
-			"${FUNCNAME[0]}" "${roomcapacity_field_value}" "${roster_line_rest}"
-	fi
-    else
-	printf 1>&2 "\n.ANOMALITY: roster_line_rest \`%s' does not contain a roomcapacity.\n" \
-		    "${roster_line_rest}"
-	exit 1
-    fi
-    ## 5. strip the roomnumber:
-    roomnumber_re="([^[:space:]]+)[[:space:]]*$"
-    if [[ "${roster_line_rest}" =~ ${roomnumber_re} ]]; then
-	roomnumber_field_value="${BASH_REMATCH[1]}"
-	roster_line_rest="${roster_line_rest//${roomnumber_field_value}/}"
-	roster_line_rest="${roster_line_rest%% }"
-	if [[ ${DEBUG} ]]; then
-	    printf 1>&2 "%s: roomnumber_field_value=\`%s', roster_line_rest=\`%s'\n" \
-			"${FUNCNAME[0]}" "${roomnumber_field_value}" "${roster_line_rest}"
-	fi
-    else
-	printf 1>&2 "\n.ANOMALITY: roster_line_rest \`%s' does not contain a roomnumber.\n" \
-		    "${roster_line_rest}"
-	exit 1
-    fi
-    ## 6. strip the teacher_abbrev:
-    teacherabbrev_re="[[:space:]]([A-Z]+)$"
-    if [[ "${roster_line_rest}" =~ ${teacherabbrev_re} ]]; then
-	teacherabbrev_field_value="${BASH_REMATCH[1]}"
-	roster_line_rest="${roster_line_rest// ${teacherabbrev_field_value}/}"
-	if [[ ${DEBUG} ]]; then
-	    printf 1>&2 "%s: teacherabbrev_field_value=\`%s', roster_line_rest=\`%s'\n " \
-			"${FUNCNAME[0]}" "${teacherabbrev_field_value}" "${roster_line_rest}"
-	fi
-    else
-	printf 1>&2 "\n.ANOMALITY in %s: roster_line_rest \`%s' does not contain a teacherabbrev.\n" \
-		    "${FUNCNAME[0]}" "${roster_line_rest}"
-	exit 1
-    fi
-    ## normal match
-    course_field_value=${roster_line_rest}
+    coursename_fieldvalue="${rosteritem_props[0]}"
+    roomcapacity_fieldvalue="${rosteritem_props[1]}"
+    roomnumber_fieldvalue="${rosteritem_props[2]}"
+    teacherabbrev_fieldvalue="${rosteritem_props[3]}"
     ## start processing
     starttime="${starting_hours[${lesson_hour}]}:00"
     ## BEGIN
     vevent=("${ics_newline}BEGIN:VEVENT")
     ## LOCATION
-    location_value="$(ret_vevent_location "${roomnumber_field_value}")"
+    location_value="$(ret_vevent_location "${roomnumber_fieldvalue}")"
     vevent+=("LOCATION:${location_value}")
     ## ORGANIZER
     ## ";" cnparam ";" dirparam ";" sentbyparam) / (";" languageparam) /
     vevent+=("${ics_organizer_value//${ics_newline}${ics_newline}/}")
     ## ATTENDEE;ROLE=CHAIR
-    chair_value="$(ret_vevent_attendeechair "${teacherabbrev_field_value}")"
+    chair_value="$(ret_vevent_attendeechair "${teacherabbrev_fieldvalue}")"
     if [[ $? -eq 0 ]]; then
 	chair_value="ATTENDEE;ROLE=CHAIR;${chair_value}"		
 	chair_value="$(wrap_lines "${chair_value}")"		
@@ -669,9 +673,8 @@ function parse_roster_item() {
     ## UID
     vevent+=("UID:${app_name}@${RANDOM}$(date +"%Y%m%d%H%M%S")")
     ## SUMMARY
-    vevent+=("SUMMARY:$(ret_vevent_summary \
-    "${course_field_value}" )")
-    category_value="$(ret_vevent_category "${course_field_value}")"
+    vevent+=("SUMMARY:$(ret_vevent_summary "${coursename_fieldvalue}" )")
+    category_value="$(ret_vevent_category "${coursename_fieldvalue}")"
     vevent+=("CATEGORIES:${category_value}")
     ## add PRIORITY for tests
     if [[ "${labels_rosteritemcategory[test]}" == "${category_value}" ]]; then
@@ -719,7 +722,6 @@ function parse_roster_lines_xml() {
 function parse_roster_hours() {
     week_startdate="$1"
     xml_parsed="$2"
-    
     ## wrapper (weekday 0=monday!)
     for weekday in {0..5}; do 
 	for lesson_hour in {1..18}; do 
