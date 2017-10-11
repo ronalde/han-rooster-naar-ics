@@ -409,21 +409,50 @@ function wrap_lines() {
     ## white-space character is ignored (i.e., removed) when
     ## processing the content type.
     ## http://icalendar.org/iCalendar-RFC-5545/3-1-content-lines.html
-
     input_text="$(echo ${1//\\n/})"
     i=0
-    chars=${ics_maxwidth}
+    chars=73
     while [[ -n "${input_text:$((chars*i)):${chars}}" ]]; do
-	#printf 1>&2 "debug (%s): \`%s'\n" "$((chars*i))" "${input_text:$((chars*i)):${chars}}"
 	if [[ ${i} -eq 0 ]]; then
 	    ## first line; just wrap
-	    printf "%s${ics_newline}" "${input_text:0:${chars}}"
+	    printf "%s\n" "${input_text:0:${chars}}"
 	else
 	    ## consequtive lines; start with space and wrap
-	    printf " %s${ics_newline}" "${input_text:$((chars*i)):${chars}}"
+	    printf " %s\n" "${input_text:$((chars*i)):${chars}}"
 	fi
 	((i++))
     done
+}
+
+function ret_group_id() {
+    ## return group_id for group_name $1 from roster_url
+    group_name="$1"
+    local group_id=
+    group_option_re="option value=\"([0-9]+)\">(${group_name,,})</option"
+    curl_params=(--silent)
+    while read -r line; do
+	if [[ "${line,,}" =~ ${group_option_re} ]]; then
+	    group_id="${BASH_REMATCH[1]}"   
+	    break
+	fi
+    done < <(${cmd_curl} "${curl_params[@]}" "${roster_url}" 2>/dev/null)
+    if [[ ${group_id} -gt 0 ]]; then
+	printf "%s" "${group_id}"
+    else
+	return 1
+    fi
+}
+
+function ret_vevent_organizer_value() {
+    ## return vevent organizer value
+    ics_organizer_cnparam="${app_name}"
+    ics_organizer_dirparam="DIR=\"${roster_url}\""
+    ics_organizer_mailtoparam="MAILTO:${ics_organizer_email}"
+    ics_organizer_cnparam="CN=${ics_organizer_cn}"
+    ics_organizer_sentbyparam="SENT-BY=\"MAILTO:${ics_organizer_sentby_email}\""
+    ics_organizer_value="ORGANIZER;${ics_organizer_cnparam};${ics_organizer_dirparam};${ics_organizer_sentbyparam}:${ics_organizer_mailtoparam}"
+    ics_organizer_value="$(wrap_lines "${ics_organizer_value}")"
+    printf "%s\n" "${ics_organizer_value}"
 }
 
 function ret_vevent_summary() {
@@ -649,19 +678,19 @@ function parse_roster_item() {
     ## start processing
     starttime="${starting_hours[${lesson_hour}]}:00"
     ## BEGIN
-    vevent=("${ics_newline}BEGIN:VEVENT")
+    vevent=("\nBEGIN:VEVENT")
     ## LOCATION
     location_value="$(ret_vevent_location "${roomnumber_fieldvalue}")"
     vevent+=("LOCATION:${location_value}")
     ## ORGANIZER
     ## ";" cnparam ";" dirparam ";" sentbyparam) / (";" languageparam) /
-    vevent+=("${ics_organizer_value//${ics_newline}${ics_newline}/}")
+    vevent+=("${ics_organizer_value//\n\n/}")
     ## ATTENDEE;ROLE=CHAIR
     chair_value="$(ret_vevent_attendeechair "${teacherabbrev_fieldvalue}")"
     if [[ $? -eq 0 ]]; then
 	chair_value="ATTENDEE;ROLE=CHAIR;${chair_value}"		
 	chair_value="$(wrap_lines "${chair_value}")"		
-	vevent+=("${chair_value//${ics_newline}${ics_newline}/}")
+	vevent+=("${chair_value//\n\n/}")
     fi
     lesson_date="$(date -d "${week_startdate} + ${weekday} day" +"%Y%m%d")"
     ## DTSTART
@@ -690,7 +719,7 @@ function parse_roster_item() {
     vevent+=("X-MOZ-SEND-INVITATIONS:FALSE")
     ## END
     vevent+=("END:VEVENT")
-    printf "%s${ics_newline}" "${vevent[@]}"	
+    printf "%s\n" "${vevent[@]}"	
 }
 
 function parse_roster_lines_xml() {
@@ -707,16 +736,13 @@ function parse_roster_lines_xml() {
     q_xpath="//tr[1]/following-sibling::*[${lesson_hour}]/*[${weekday_tdselector}]/text()"
     xmllint_args+=(--xpath "${q_xpath}")
     res="$(XMLLINT_INDENT=2 ${cmd_xmllint} "${xmllint_args[@]}" - <<<"${xml_source}" 2>/dev/null)"
-    if [[ $? -ne 0 ]]; then
-	#printf 1>&2 "\nerror:\n%s\n\n" "${res}"
+    if [[ $? -ne 0 ]] || [[ "${res// /}x" == "x" ]]; then
 	return 1
     else
-	declare -p res 1>&2
 	## return the xml
 	res="${res//$'\n'/}"
 	res="${res//#/$'\n'}"
 	printf "%s\n" "${res}"
-	#printf 1>&2 "xmlres: '%s'\n" "${res}"
     fi
 }
 
@@ -736,26 +762,6 @@ function parse_roster_hours() {
 	    done<<<"${res}"
 	done
     done 
-}
-
-
-function ret_group_id() {
-    ## return group_id for group_name $1
-    group_name="$1"
-    local group_id=
-    group_option_re="option value=\"([0-9]+)\">(${group_name,,})</option"
-    curl_params=(--silent)
-    while read -r line; do
-	if [[ "${line,,}" =~ ${group_option_re} ]]; then
-	    group_id="${BASH_REMATCH[1]}"   
-	    break
-	fi
-    done < <(${cmd_curl} "${curl_params[@]}" "${roster_url}" 2>/dev/null)
-    if [[ ${group_id} -gt 0 ]]; then
-	printf "%s" "${group_id}"
-    else
-	return 1
-    fi
 }
 
 function ret_weekly_timetable_parsedxml() {
@@ -925,23 +931,77 @@ function write_ics() {
     ## creates ics file $1 using a temporary file 
     tempfile="$(mktemp "/tmp/${app_name}.XXXX")"
     printf "%s" "${ics_header}" > ${tempfile}
-    printf 1>&2 "%3s- merging weekly ics snippets ...\n" \
-		" "
+    printf 1>&2 "%3s- merging weekly ics snippets ...\n" " "
     for ics_snippet in ${temp_storage_dir}/*.ics; do
 	vevent_ics="$(<${ics_snippet})"
 	if [[ "${vevent_ics}x" == "x"  ]]; then
 	    printf 1>&2 "x"
 	else
-	    printf "%s${ics_newline}" "${vevent_ics}" >> ${tempfile}
+	    printf "%s\n" "${vevent_ics}" >> ${tempfile}
 	    printf 1>&2 "."
 	fi
     done
     ## add the footer
     printf "%s" "${ics_footer}" >> ${tempfile}
-    replace_newline_with_crlf "${tempfile}" "${output_path}"
+    ## convert tempfile to the actual output file
+    replace_newline_with_crlf "${tempfile}" "${output_path}" && \
+	rm "${tempfile}"
     printf 1>&2 " done.\n"
 }
 
+function process_weeks() {
+    # shellcheck disable=SC2183
+    printf -v rundate_real "%(%Y%m%d)T"
+    ## current weekday num (monday=1)
+    # shellcheck disable=SC2183
+    printf -v rundate_weekdaynum "%(%u)T"
+    ## substract n days from the current date to get the first day
+    ## (monday) of this week, where n is the current day number - 1
+    rundate_firstdayofweek="$(date - "${rundate_real} - $(( rundate_weekdaynum - 1 )) day" \
+ +"%Y%m%d")"
+    ## first run
+    week_counter=0
+    cur_date="${rundate_firstdayofweek}"
+    printf 1>&2 "%3s- getting id for group \`%s' ... " \
+		" " \
+		"${group_name}"
+    cur_weeknum=$(date -d "${cur_date}" +"%V")
+    cur_year=$(date -d "${cur_date}" +"%Y")
+    cur_filename="${cur_year}_${cur_weeknum}.${app_name}.ics"
+    group_id="$(ret_group_id "${group_name}")"
+    if [[ $? -ne 0 ]]; then
+	printf -v msg_error \
+	       "errors occured.\ncould not get group_id for group \`%s' using url \`%s'\n" \
+	       "${group_name}" \
+	       "${roster_url}"
+	die "${msg_error}"
+    else
+	printf 1>&2 "done.\n%5s(%d)\n" \
+		    " " "${group_id}"
+    fi
+    #printf 1>&2 "%3sconverting timetable website to ics ...\n" " "
+    printf 1>&2 "%3s- getting and processing weekly timetables ...\n" " "
+    ## process each week
+    while ((0<=week_counter && week_counter<=weeks_ahead - 1)); do
+	printf 1>&2 "%5s* week %2s of %s: %s/%s " \
+		" " "$((week_counter + 1))" "${weeks_ahead}" "${cur_weeknum}" "${cur_year}"
+	## get xml with this weeks timetable information
+	xml_parsed="$(ret_weekly_timetable_parsedxml "${group_id}" "${cur_date}")"
+	if [[ $? -ne 0 ]]; then
+	    printf 1>&2 "error getting or parsing xml:\n%s\n" "${xml_parsed}"
+	    break
+	fi
+	res="$(parse_roster_hours "${cur_date}" "${xml_parsed}")"
+	if [[ $? -eq 0 ]] && [[ -f "${temp_storage_dir}/${cur_filename}" ]]; then 
+	    rm -f "${temp_storage_dir}/${cur_filename}"
+	fi
+	printf "%s\n" "${res}" > "${temp_storage_dir}/${cur_filename}"
+	printf 1>&2 " done\n" 
+	## forward one week
+	cur_date="$(date -d "${cur_date} + 7days" +"%Y%m%d")"
+	(( week_counter++ ))
+    done
+}
 
 ## main
 printf 1>&2 ">>> preparing to create ics file from Untis roster\n"
@@ -1059,13 +1119,23 @@ if [[ ${#errors[@]} -gt 0 ]]; then
     printf -v msg_error "%s\n" "${errors[@]}"
     die "${msg_error}"
 fi
+## set up translation tables
+labels_roomcapacity[small]="Leslokaal"
+labels_roomcapacity[moderate]="Praktijklokaal"
+labels_roomcapacity[large]="Collegezaal"
+labels_roomcapacity[default]="Lokaal"
+labels_roomcapacity[kantine]=""
+declare -A labels_rosteritemcategory
+labels_rosteritemcategory[test]="Toets"
+labels_rosteritemcategory[lab]="Practicum"
+labels_rosteritemcategory[lesson]="Les"
+labels_rosteritemcategory[lecture]="College"
+labels_rosteritemcategory[guestlecture]="Gastcollege"
+labels_rosteritemcategory[workshop]="Werkcollege"
+array_from_csv "courses" "2" || exit 1
+array_from_csv "teachers" "5" || exit 1
 
-ics_organizer_cnparam="${app_name}"
-ics_organizer_dirparam="DIR=\"${roster_url}\""
-ics_organizer_mailtoparam="MAILTO:${ics_organizer_email}"
-ics_organizer_cnparam="CN=${ics_organizer_cn}"
-ics_organizer_sentbyparam="SENT-BY=\"MAILTO:${ics_organizer_sentby_email}\""
-ics_organizer_value="ORGANIZER;${ics_organizer_cnparam};${ics_organizer_dirparam};${ics_organizer_sentbyparam}:${ics_organizer_mailtoparam}"
+ics_organizer_value="$(ret_vevent_organizer_value)"
 starting_hours=("08:00"
 		"08:45"
 		"09:30"
@@ -1086,10 +1156,6 @@ starting_hours=("08:00"
 		"21:15"
 		"22:00")
 ics_dt_timeformat="T%H%M%S"
-## newline seperator for ICS lines
-ics_newline="\n"
-## max chars per line in ICS files; see wrap_lines function
-ics_maxwidth="73"
 ics_dt_timezoneid="Europe/Amsterdam"
 
 # shellcheck disable=SC1078,SC1079,SC1089
@@ -1097,7 +1163,7 @@ ics_header="""\
 BEGIN:VCALENDAR
 VERSION:2.0
 CALSCALE:GREGORIAN
-PRODID:-//Lacocina//NONSGML HAN Rooster//EN
+PRODID:-//Lacocina//NONSGML ${ics_organizer_cnparam}//EN
 BEGIN:VTIMEZONE
 TZID:${ics_dt_timezoneid}
 X-LIC-LOCATION:${ics_dt_timezoneid}
@@ -1119,22 +1185,6 @@ END:VTIMEZONE"""
 ics_footer="""
 END:VCALENDAR"""
 
-labels_roomcapacity[small]="Leslokaal"
-labels_roomcapacity[moderate]="Praktijklokaal"
-labels_roomcapacity[large]="Collegezaal"
-labels_roomcapacity[default]="Lokaal"
-labels_roomcapacity[kantine]=""
-declare -A labels_rosteritemcategory
-labels_rosteritemcategory[test]="Toets"
-labels_rosteritemcategory[lab]="Practicum"
-labels_rosteritemcategory[lesson]="Les"
-labels_rosteritemcategory[lecture]="College"
-labels_rosteritemcategory[guestlecture]="Gastcollege"
-labels_rosteritemcategory[workshop]="Werkcollege"
-
-array_from_csv "courses" "2" || exit 1
-array_from_csv "teachers" "5" || exit 1
-
 check_sanity || exit 1
 
 printf 1>&2 "<<< done preparing.\n"
@@ -1146,60 +1196,7 @@ printf 1>&2 ">>> getting rosters for group \`%s' from \`%s'.\n" \
 ## append default to array
 labels_teachers[-]="(no teacher) mailto:(n/a) dir:(n/a)"
 
-
-ics_organizer_value="$(wrap_lines "${ics_organizer_value}")"
-
-# shellcheck disable=SC2183
-printf -v rundate_real "%(%Y%m%d)T"
-## current weekday num (monday=1)
-# shellcheck disable=SC2183
-printf -v rundate_weekdaynum "%(%u)T"
-## substract n days from the current date to get the first day
-## (monday) of this week, where n is the current day number - 1
-rundate_firstdayofweek="$(date -d \
-"${rundate_real} - $(( rundate_weekdaynum - 1)) day" +"%Y%m%d")"
-
-## first run
-week_counter=0
-cur_date="${rundate_firstdayofweek}"
-
-printf 1>&2 "%3s- getting id for group \`%s' ... " \
-	    " " "${group_name}"
-group_id="$(ret_group_id "${group_name}")"
-if [[ $? -ne 0 ]]; then
-    printf 1>&2 "errors occured.\n"
-    printf -v msg_error "could not get group_id for group \`%s' using url \`%s'\n" \
-	   "${group_name}" "${roster_url}"
-    die "${msg_error}"
-else
-    printf 1>&2 "done.\n%5s(%d)\n" \
-		" " "${group_id}"
-fi
-#printf 1>&2 "%3sconverting timetable website to ics ...\n" " "
-printf 1>&2 "%3s- getting and processing weekly timetables ...\n" " "
-
-while ((0<=week_counter && week_counter<=weeks_ahead - 1)); do
-    cur_weeknum=$(date -d "${cur_date}" +"%V")
-    cur_year=$(date -d "${cur_date}" +"%Y")
-    cur_filename="${cur_year}_${cur_weeknum}.han-roster-events.ics"
-    printf 1>&2 "%5s* week %2s of %s: %s/%s " \
-		" " "$((week_counter + 1))" "${weeks_ahead}" "${cur_weeknum}" "${cur_year}"
-    ## get xml with this weeks timetable information
-    xml_parsed="$(ret_weekly_timetable_parsedxml "${group_id}" "${cur_date}")"
-    if [[ $? -ne 0 ]]; then
-	printf 1>&2 "error getting or parsing xml:\n%s\n" "${xml_parsed}"
-	break
-    fi
-    res="$(parse_roster_hours "${cur_date}" "${xml_parsed}")"
-    if [[ $? -eq 0 ]] && [[ -f "${temp_storage_dir}/${cur_filename}" ]]; then 
-	rm -f "${temp_storage_dir}/${cur_filename}"
-    fi
-    printf "%s\n" "${res}" > "${temp_storage_dir}/${cur_filename}"
-    printf 1>&2 " done\n" 
-    ## forward one week
-    cur_date="$(date -d "${cur_date} + 7days" +"%Y%m%d")"
-    (( week_counter++ ))
-done
+process_weeks
 
 write_ics
 
