@@ -1,2 +1,6 @@
 vendor
 temp_storage
+private-data
+private-data/**
+temp-storage/**
+temp-storage

@@ -33,9 +33,10 @@
 
 app_name="han-rooster-naar-ics"
 app_info_url="https://github.com/ronalde/${app_name}"
+private_data_dir="private-data"
 
-default_courses_csv_filename="data/courses.csv"
-default_teachers_csv_filename="data/teachers.csv"
+default_courses_csv_filename="${private_data_dir}/courses.csv"
+default_teachers_csv_filename="${private_data_dir}/teachers.csv"
 default_lessonduration_minutes=45
 default_weeks_ahead=12
 default_standard_group_size=15
@@ -76,7 +77,7 @@ OPTIONAL ARGUMENTS
  -c|--courses-csv-path PATH	   Path to the csv file containing
        information on courses. Defaults to \`${default_courses_csv_filename}' in current
        directory.
- --temp-storage-dir PATH	   PATH to the directory to store
+ --historic-ics-snippets-dir PATH	   PATH to the directory to store
        temporary ics snippets. Old ics files found in this directory
        are used in the final ics file, so set this to retain
        historical information.
@@ -254,11 +255,11 @@ function analyze_command_line() {
                     continue
 		fi
 		;;	    
-            --temp-storage-dir)
+            --historic-ics-snippets-dir)
 		if [[ "${2}x" == "x" ]]; then
 		    die "argument \`$1' requires a valid PATH."
 		else
-		    arg_temp_storage_dir="$2"
+		    arg_historic_ics_snippets_dir="$2"
 		    shift 2
                     continue
 		fi
@@ -302,7 +303,7 @@ function analyze_command_line() {
 	group_name="${arg_group_name}"
 	output_path="${arg_output_path:-${curdir}/${group_name}_$(date +'%Y%m%dT%H%M%S').ics}"
 	a_symlink_names=(${arg_symlink_names:-})
-	temp_storage_dir="${arg_temp_storage_dir}"
+	historic_ics_snippets_dir="${arg_historic_ics_snippets_dir}"
 	standard_group_size="${arg_standard_group_size:-${default_standard_group_size}}"
 	weeks_ahead="${arg_weeks_ahead:-${default_weeks_ahead}}"
 	lessonduration_minutes="${arg_lessonduration_minutes:-${default_lessonduration_minutes}}"
@@ -345,7 +346,7 @@ function analyze_command_line() {
 	    printf -v timestamp '%(%Y%m%dT%H%M%S)T'
 	    output_path="${output_path:-${curdir}/${group_name}_${timestamp}.ics}"
 	    a_symlink_names=(${symlink_names:-})
-	    temp_storage_dir="${temp_storage_dir:-}"
+	    historic_ics_snippets_dir="${historic_ics_snippets_dir:-}"
 	    standard_group_size="${standard_group_size:-${default_standard_group_size}}"
 	    weeks_ahead="${weeks_ahead:-${default_weeks_ahead}}"
 	    lessonduration_minutes="${lessonduration_minutes:-${default_lessonduration_minutes}}"
@@ -960,8 +961,8 @@ and start_date \`%s'.\n" \
 	 fi
      fi
      printf 1>&2 "%3s- managing temporary storage directory ... " " "
-     if [[ "${temp_storage_dir}x" == "x" ]]; then
-	 temp_storage_dir="$(mktemp -d "/tmp/${app_name}_temp_XXXXX")"
+     if [[ "${historic_ics_snippets_dir}x" == "x" ]]; then
+	 historic_ics_snippets_dir="$(mktemp -d "/tmp/${app_name}_temp_XXXXX")"
 	 if [[ $? -ne 0 ]]; then
 	     printf 1>&2 "error.\n"
 	     printf -v msg_err "could not create temporary directory using \`%s'.\n" \
@@ -971,29 +972,29 @@ and start_date \`%s'.\n" \
 	     printf 1>&2 "done.\n"
 	     printf 1>&2 "%5s* \`%s' (%s).\n" \
 			 " " \
-			 "${temp_storage_dir}" \
+			 "${historic_ics_snippets_dir}" \
 			 "using temporary directory"
 	 fi
      else
-	 if [[ ! -d "${temp_storage_dir}" ]]; then
-	     res="$(mkdir -pv "${temp_storage_dir}" 2>&1)"
+	 if [[ ! -d "${historic_ics_snippets_dir}" ]]; then
+	     res="$(mkdir -pv "${historic_ics_snippets_dir}" 2>&1)"
 	     if [[ $? -ne 0 ]]; then
 		 printf 1>&2 "error.\n"
 		 printf -v msg_err "could not create specified temporary directory \`%s'.\nmkdir returned error:\n%s\n" \
-			"${temp_storage_dir}" "${res}"
+			"${historic_ics_snippets_dir}" "${res}"
 		 die "${msg_err}"
 	     else
 		 printf 1>&2 "done.\n"
 		 printf 1>&2 "%5s* \`%s' (%s).\n" \
 			     " " \
-			     "${temp_storage_dir}" \
+			     "${historic_ics_snippets_dir}" \
 			     "new storage directory created"
 	     fi
 	 else
 	     printf 1>&2 "done.\n"
 	     printf 1>&2 "%5s* \`%s' (%s).\n" \
 			 " " \
-			 "${temp_storage_dir}" \
+			 "${historic_ics_snippets_dir}" \
 			 "reusing existing storage directory"
 	     
 	 fi
@@ -1005,7 +1006,7 @@ and start_date \`%s'.\n" \
      tempfile="$(mktemp "/tmp/${app_name}.XXXX")"
      printf "%s" "${ics_header}" > ${tempfile}
      printf 1>&2 "%3s- merging weekly ics snippets " " "
-     for ics_snippet in ${temp_storage_dir}/*.ics; do
+     for ics_snippet in ${historic_ics_snippets_dir}/*.ics; do
 	 vevent_ics="$(<${ics_snippet})"
 	 if [[ "${vevent_ics}x" == "x"  ]]; then
 	     printf 1>&2 "%s" "-"
@@ -1073,10 +1074,10 @@ and start_date \`%s'.\n" \
 	     break
 	 fi
 	 res="$(parse_roster_hours "${cur_date}" "${xml_parsed}")"
-	 if [[ $? -eq 0 ]] && [[ -f "${temp_storage_dir}/${cur_filename}" ]]; then 
-	     rm -f "${temp_storage_dir}/${cur_filename}"
+	 if [[ $? -eq 0 ]] && [[ -f "${historic_ics_snippets_dir}/${cur_filename}" ]]; then 
+	     rm -f "${historic_ics_snippets_dir}/${cur_filename}"
 	 fi
-	 printf "%s\n" "${res}" > "${temp_storage_dir}/${cur_filename}"
+	 printf "%s\n" "${res}" > "${historic_ics_snippets_dir}/${cur_filename}"
 	 printf 1>&2 " done\n" 
 	 ## forward one week
 	 cur_date="$(date -d "${cur_date} + 7days" +"%Y%m%d")"
@@ -1113,7 +1114,7 @@ and start_date \`%s'.\n" \
  ## main
  curdir="$(pwd)"
  declare arg_settings_file arg_roster_url arg_group_name \
-	 arg_temp_storage_dir \
+	 arg_historic_ics_snippets_dir \
 	 arg_output_path arg_symlink_path \
 	 arg_standard_group_size arg_weeks_ahead \
 	 arg_lessonduration_minutes arg_teachers_csv_path arg_courses_csv_path \
