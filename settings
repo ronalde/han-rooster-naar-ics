@@ -5,7 +5,7 @@ group_name="BML-2x"
 output_path="/srv/webserver-root/usr/share/wordpress/${group_name}_$(date +'%Y%m%dT%H%M%S').ics"
 symlink_names="han.ics han"
 overwrite_symlinks=True
-temp_storage_dir="temp-storage"
+historic_ics_snippets_dir="private-data/historic-ics-snippets"
 
 standard_group_size=15
 weeks_ahead=12
