@@ -1172,9 +1172,13 @@ and start_date \`%s'.\n" \
  labels_rosteritemcategory[lecture]="College"
  labels_rosteritemcategory[guestlecture]="Gastcollege"
  labels_rosteritemcategory[workshop]="Werkcollege"
- array_from_csv "courses" "2" || exit 1
- array_from_csv "teachers" "5" || exit 1
 
+ if [[ -f "${csv_paths[courses]}" ]]; then 
+     array_from_csv "courses" "2" || exit 1
+ fi
+ if [[ -f "${csv_paths[teachers]}" ]]; then 
+     array_from_csv "teachers" "5" || exit 1
+fi
  ics_organizer_value="$(ret_vevent_organizer_value)"
  starting_hours=("08:00"
 		 "08:45"
